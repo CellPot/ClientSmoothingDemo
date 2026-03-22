@@ -205,7 +205,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85699e5434cdeb8469123c3086a5d42a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Techniques.ExponentialSmoothingClient
-  transport: {fileID: 154155773}
+  transportBehaviour: {fileID: 154155773}
   server: {fileID: 2021013958}
   techniqueName: Base
   color: {r: 1, g: 1, b: 1, a: 1}
@@ -213,6 +213,7 @@ MonoBehaviour:
   averageError: 0
   maxError: 0
   smoothingAlpha: 0.85
+  sendRateHz: 20
 --- !u!1 &115358598
 GameObject:
   m_ObjectHideFlags: 0
@@ -257,7 +258,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0ec05c9cf17cbae4abf4242e889ea48e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Techniques.DeadReckoningClient
-  transport: {fileID: 154155773}
+  transportBehaviour: {fileID: 154155773}
   server: {fileID: 2021013958}
   techniqueName: Base
   color: {r: 1, g: 1, b: 1, a: 1}
@@ -310,7 +311,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eeeea10085d57ef4685db8d2ebf4fc13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Techniques.ClientInterpolationClient
-  transport: {fileID: 154155773}
+  transportBehaviour: {fileID: 154155773}
   server: {fileID: 2021013958}
   techniqueName: Base
   color: {r: 1, g: 1, b: 1, a: 1}
@@ -414,7 +415,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 44183bfbf5434745a2d62aaf784b10cd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Techniques.JitterBufferWithDeadReckoning
-  transport: {fileID: 154155773}
+  transportBehaviour: {fileID: 154155773}
   server: {fileID: 2021013958}
   techniqueName: Base
   color: {r: 1, g: 1, b: 1, a: 1}
@@ -468,7 +469,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f171ff44db88e0842b0121e8b7f8156a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Techniques.NaiveClient
-  transport: {fileID: 154155773}
+  transportBehaviour: {fileID: 154155773}
   server: {fileID: 2021013958}
   techniqueName: Base
   color: {r: 1, g: 1, b: 1, a: 1}
@@ -519,7 +520,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7693655c5b2b4b59a826b227a8971840, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Techniques.KalmanWithExponentialSmoothing
-  transport: {fileID: 154155773}
+  transportBehaviour: {fileID: 154155773}
   server: {fileID: 2021013958}
   techniqueName: Base
   color: {r: 1, g: 1, b: 1, a: 1}
@@ -794,7 +795,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 63be7d8620b6dc44892823dae1672e8e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Techniques.JitterBufferClient
-  transport: {fileID: 154155773}
+  transportBehaviour: {fileID: 154155773}
   server: {fileID: 2021013958}
   techniqueName: Base
   color: {r: 1, g: 1, b: 1, a: 1}
@@ -847,7 +848,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f3d28f9e1c714754e86900ab9962368b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Techniques.KalmanFilterClient
-  transport: {fileID: 154155773}
+  transportBehaviour: {fileID: 154155773}
   server: {fileID: 2021013958}
   techniqueName: Base
   color: {r: 1, g: 1, b: 1, a: 1}
@@ -958,7 +959,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7f6d6a8308924e44393bc98fcd310a1b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Techniques.ServerReconciliationClient
-  transport: {fileID: 154155773}
+  transportBehaviour: {fileID: 154155773}
   server: {fileID: 2021013958}
   techniqueName: Base
   color: {r: 1, g: 1, b: 1, a: 1}
@@ -966,6 +967,7 @@ MonoBehaviour:
   averageError: 0
   maxError: 0
   correctionBlend: 12
+  baseLatencyMs: 100
 --- !u!1 &1958500117
 GameObject:
   m_ObjectHideFlags: 0
@@ -1010,7 +1012,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 164da20895c2443c9fd1f7daec263603, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Techniques.SnapshotInterpolationWithDeadReckoning
-  transport: {fileID: 154155773}
+  transportBehaviour: {fileID: 154155773}
   server: {fileID: 2021013958}
   techniqueName: Base
   color: {r: 1, g: 1, b: 1, a: 1}
@@ -1063,7 +1065,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6e78b5fa1d762854eb5113a26f5d0006, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Network.ServerEntity
-  transport: {fileID: 154155773}
+  transportBehaviour: {fileID: 154155773}
+  sendRateHz: 20
   timeScale: 1
   moveSpeed: 5
   speedX: 2
@@ -1118,7 +1121,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: adc59187e4824454ab689624240c34f5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Techniques.SnapshotInterpolationClient
-  transport: {fileID: 154155773}
+  transportBehaviour: {fileID: 154155773}
   server: {fileID: 2021013958}
   techniqueName: Base
   color: {r: 1, g: 1, b: 1, a: 1}

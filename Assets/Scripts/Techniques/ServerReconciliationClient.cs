@@ -18,6 +18,7 @@ namespace Techniques
     public class ServerReconciliationClient : BaseClientEntity
     {
         [Range(1f, 20f)] public float correctionBlend = 12f;
+        public float baseLatencyMs = 100;
 
         private struct InputRecord
         {
@@ -83,7 +84,7 @@ namespace Techniques
                     _inputHistory.Add(new InputRecord
                     {
                         // Stamp as "when server will confirm this" = now + RTT
-                        timestamp = Time.time + (transport.baseLatencyMs * 2f / 1000f),
+                        timestamp = Time.time + (baseLatencyMs * 2f / 1000f),
                         delta = delta
                     });
                     if (_inputHistory.Count > 256)

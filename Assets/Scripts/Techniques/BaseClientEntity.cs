@@ -10,7 +10,10 @@ namespace Techniques
     /// </summary>
     public abstract class BaseClientEntity : MonoBehaviour
     {
-        [Header("References")] public NetworkSimulator transport; // drag in Inspector
+        [Header("References")] [SerializeField]
+        private MonoBehaviour transportBehaviour;
+
+        private INetworkTransport _transport;
         public ServerEntity server;
 
         [Header("Display")] public string techniqueName = "Base";
@@ -29,17 +32,22 @@ namespace Techniques
 
         protected virtual void OnEnable()
         {
-            transport.RegisterListener(OnSnapshotReceived);
+            _transport?.RegisterListener(OnSnapshotReceived);
         }
 
         protected virtual void OnDisable()
         {
-            if (transport != null)
-                transport.UnregisterListener(OnSnapshotReceived);
+            _transport?.UnregisterListener(OnSnapshotReceived);
         }
 
         protected virtual void Awake()
         {
+            _transport = transportBehaviour as INetworkTransport;
+
+            if (_transport == null)
+                Debug.LogError($"[{name}] transportBehaviour does not implement INetworkTransport.", this);
+
+
             var go = this.gameObject;
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = CreateCircleSprite(color);

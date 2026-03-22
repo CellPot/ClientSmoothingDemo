@@ -8,9 +8,13 @@ namespace Network
     /// </summary>
     public class ServerEntity : MonoBehaviour
     {
-        [Header("Network")] public NetworkSimulator transport;
-
-        [Header("Movement")] [Range(0.1f, 5f)] public float timeScale = 1f;
+        [Header("Network")]
+        [SerializeField] private MonoBehaviour transportBehaviour;
+        private INetworkTransport _transport;
+        
+        [Range(1f, 64f)] public float sendRateHz = 20f;
+        [Header("Movement")] [Range(0.1f, 5f)] 
+        public float timeScale = 1f;
         [Range(1f, 20f)] public float moveSpeed = 5f;
         public float speedX = 2f;
         public float speedY = 1.3f;
@@ -33,6 +37,11 @@ namespace Network
 
         void Awake()
         {
+            _transport = transportBehaviour as INetworkTransport;
+            if (_transport == null)
+                Debug.LogError($"[{name}] transportBehaviour does not implement INetworkTransport.", this);
+
+            
             var sr = gameObject.AddComponent<SpriteRenderer>();
             sr.sprite = CreateDiamondSprite(Color.white);
             sr.sortingOrder = 10;
@@ -46,9 +55,6 @@ namespace Network
             trail.material = new Material(Shader.Find("Sprites/Default"));
             trail.startColor = new Color(1f, 1f, 1f, 0.6f);
             trail.endColor = new Color(1f, 1f, 1f, 0f);
-
-            if (transport == null)
-                transport = FindFirstObjectByType<NetworkSimulator>();
         }
 
         static Sprite CreateDiamondSprite(Color color)
@@ -121,11 +127,11 @@ namespace Network
             transform.position = basePos;
 
             _sendTimer += Time.deltaTime;
-            float sendInterval = 1f / transport.sendRateHz;
+            float sendInterval = 1f / sendRateHz;
             if (_sendTimer >= sendInterval)
             {
                 _sendTimer -= sendInterval;
-                transport.Send(new NetworkSimulator.Snapshot
+                _transport.Send(new NetworkSimulator.Snapshot
                 {
                     timestamp = Time.time,
                     position = TruePosition,
