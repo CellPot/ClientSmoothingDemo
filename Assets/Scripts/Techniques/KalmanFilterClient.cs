@@ -25,10 +25,11 @@ namespace Techniques
         private float _lastSnapshotTime;
         private float _timeSinceSnapshot;
 
-        void Awake()
+        protected override void Awake()
         {
             techniqueName = "Kalman Filter";
             color = new Color(0f, 1f, 0.5f);
+            base.Awake();
         }
 
         protected override void OnEnable()

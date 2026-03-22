@@ -18,10 +18,11 @@ namespace Techniques
         private Vector3 _target;
         private bool _initialized;
 
-        void Awake()
+        protected override void Awake()
         {
             techniqueName = "Exponential Smoothing";
             color = Color.magenta;
+            base.Awake();
         }
 
         protected override void OnSnapshot(NetworkSimulator.Snapshot snap)
@@ -37,9 +38,8 @@ namespace Techniques
         protected override void UpdatePosition()
         {
             if (!_initialized) return;
-
-            // Frame-rate independent exponential smoothing
-            float alpha = 1f - Mathf.Pow(1f - smoothingAlpha, Time.deltaTime * NetworkSimulator.Instance.sendRateHz);
+            // was: NetworkSimulator.Instance.sendRateHz
+            float alpha = 1f - Mathf.Pow(1f - smoothingAlpha, Time.deltaTime * transport.sendRateHz);
             _smoothed = Vector3.Lerp(_smoothed, _target, alpha);
             transform.position = _smoothed;
         }

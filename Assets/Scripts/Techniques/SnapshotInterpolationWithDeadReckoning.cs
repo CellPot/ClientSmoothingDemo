@@ -7,20 +7,21 @@ namespace Techniques
     public class SnapshotInterpolationWithDeadReckoning : BaseClientEntity
     {
         [Range(0.05f, 0.5f)] public float bufferDelay = 0.15f;
-        [Range(0.1f, 1f)]    public float maxReckoningTime = 0.4f;
+        [Range(0.1f, 1f)] public float maxReckoningTime = 0.4f;
 
         private List<NetworkSimulator.Snapshot> _buffer = new List<NetworkSimulator.Snapshot>();
 
         private Vector3 _lastRenderedPos;
         private Vector3 _lastRenderedVel;
-        private float   _lastRenderedTime;
-        private bool    _initialized;
-        private bool    _reckoning;
+        private float _lastRenderedTime;
+        private bool _initialized;
+        private bool _reckoning;
 
-        void Awake()
+        protected override void Awake()
         {
             techniqueName = "Snapshot Interp + Dead Reckoning";
             color = new Color(0.2f, 0.8f, 0.4f);
+            base.Awake();
         }
 
         protected override void OnSnapshot(NetworkSimulator.Snapshot snap)
@@ -30,8 +31,8 @@ namespace Techniques
 
             if (_reckoning)
             {
-                _lastRenderedPos  = snap.position;
-                _lastRenderedVel  = snap.velocity;
+                _lastRenderedPos = snap.position;
+                _lastRenderedVel = snap.velocity;
                 _lastRenderedTime = Time.time;
             }
 
@@ -56,17 +57,17 @@ namespace Techniques
 
             if (fromIdx >= 0)
             {
-                var from  = _buffer[fromIdx];
-                var to    = _buffer[fromIdx + 1];
+                var from = _buffer[fromIdx];
+                var to = _buffer[fromIdx + 1];
                 float span = to.timestamp - from.timestamp;
-                float t    = span > 0f
+                float t = span > 0f
                     ? Mathf.Clamp01((renderTime - from.timestamp) / span)
                     : 1f;
 
-                _lastRenderedPos  = Vector3.Lerp(from.position, to.position, t);
-                _lastRenderedVel  = Vector3.Lerp(from.velocity, to.velocity, t);
+                _lastRenderedPos = Vector3.Lerp(from.position, to.position, t);
+                _lastRenderedVel = Vector3.Lerp(from.velocity, to.velocity, t);
                 _lastRenderedTime = Time.time;
-                _reckoning        = false;
+                _reckoning = false;
 
                 transform.position = _lastRenderedPos;
 

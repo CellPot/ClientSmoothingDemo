@@ -1,4 +1,5 @@
 using Network;
+using UI;
 using UnityEngine;
 
 namespace Techniques
@@ -9,10 +10,11 @@ namespace Techniques
     /// </summary>
     public abstract class BaseClientEntity : MonoBehaviour
     {
-        [Header("Display")]
-        public string techniqueName = "Base";
-        public Color color = Color.white;
+        [Header("References")] public NetworkSimulator transport; // drag in Inspector
         public ServerEntity server;
+
+        [Header("Display")] public string techniqueName = "Base";
+        public Color color = Color.white;
 
         // Error metrics
         [HideInInspector] public float currentError;
@@ -20,20 +22,49 @@ namespace Techniques
         [HideInInspector] public float maxError;
 
         private float _errorAccum;
-        private int   _errorSamples;
+        private int _errorSamples;
 
         protected NetworkSimulator.Snapshot latestSnapshot;
         protected bool hasSnapshot;
 
         protected virtual void OnEnable()
         {
-            NetworkSimulator.Instance.RegisterListener(OnSnapshotReceived);
+            transport.RegisterListener(OnSnapshotReceived);
         }
 
         protected virtual void OnDisable()
         {
-            if (NetworkSimulator.Instance != null)
-                NetworkSimulator.Instance.UnregisterListener(OnSnapshotReceived);
+            if (transport != null)
+                transport.UnregisterListener(OnSnapshotReceived);
+        }
+
+        protected virtual void Awake()
+        {
+            var go = this.gameObject;
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = CreateCircleSprite(color);
+            sr.sortingOrder = 5;
+            go.transform.localScale = Vector3.one * 0.3f;
+
+            go.AddComponent<TechniqueTrail>();
+        }
+
+        static Sprite CreateCircleSprite(Color color)
+        {
+            int size = 64;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            Vector2 center = Vector2.one * (size / 2f);
+            float radius = size / 2f - 1f;
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float dist = Vector2.Distance(new Vector2(x, y), center);
+                float alpha = Mathf.Clamp01(radius - dist + 0.5f);
+                tex.SetPixel(x, y, new Color(color.r, color.g, color.b, alpha));
+            }
+
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, size, size), Vector2.one * 0.5f, size);
         }
 
         private void OnSnapshotReceived(NetworkSimulator.Snapshot snap)
@@ -59,16 +90,16 @@ namespace Techniques
         {
             if (server == null) return;
             currentError = Vector3.Distance(transform.position, server.TruePosition);
-            _errorAccum  += currentError;
+            _errorAccum += currentError;
             _errorSamples++;
-            averageError  = _errorAccum / _errorSamples;
+            averageError = _errorAccum / _errorSamples;
             if (currentError > maxError) maxError = currentError;
         }
 
         public void ResetMetrics()
         {
             currentError = averageError = maxError = 0f;
-            _errorAccum  = 0f;
+            _errorAccum = 0f;
             _errorSamples = 0;
         }
     }

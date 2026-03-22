@@ -21,10 +21,11 @@ namespace Techniques
         private float   _timeSinceSnapshot;
         private bool    _initialized;
 
-        void Awake()
+        protected override void Awake()
         {
             techniqueName = "Dead Reckoning";
             color = new Color(1f, 0.5f, 0f); // orange
+            base.Awake();
         }
 
         protected override void OnSnapshot(NetworkSimulator.Snapshot snap)

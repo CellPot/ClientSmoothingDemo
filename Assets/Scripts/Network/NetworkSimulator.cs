@@ -10,8 +10,6 @@ namespace Network
     /// </summary>
     public class NetworkSimulator : MonoBehaviour, INetworkTransport
     {
-        public static NetworkSimulator Instance { get; private set; }
-
         [Header("Network Conditions")] [Range(0f, 500f)]
         public float baseLatencyMs = 100f;
 
@@ -44,16 +42,6 @@ namespace Network
         [HideInInspector] public int packetsDroppedTotal;
         [HideInInspector] public int packetsSentTotal;
 
-        void Awake()
-        {
-            if (Instance != null && Instance != this)
-            {
-                Destroy(gameObject);
-                return;
-            }
-
-            Instance = this;
-        }
 
         public void RegisterListener(Action<Snapshot> listener)
         {

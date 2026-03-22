@@ -8,6 +8,8 @@ namespace Network
     /// </summary>
     public class ServerEntity : MonoBehaviour
     {
+        [Header("Network")] public NetworkSimulator transport;
+
         [Header("Movement")] [Range(0.1f, 5f)] public float timeScale = 1f;
         [Range(1f, 20f)] public float moveSpeed = 5f;
         public float speedX = 2f;
@@ -28,11 +30,43 @@ namespace Network
         private Vector3 _kickOffset;
         private float _kickDecay;
         private float _pathTime;
-        private INetworkTransport _transport;
 
         void Awake()
         {
-            _transport = NetworkSimulator.Instance;
+            var sr = gameObject.AddComponent<SpriteRenderer>();
+            sr.sprite = CreateDiamondSprite(Color.white);
+            sr.sortingOrder = 10;
+            gameObject.transform.localScale = Vector3.one * 0.45f;
+
+            // Trail on server so you can see the true path
+            var trail = gameObject.AddComponent<TrailRenderer>();
+            trail.time = 3f;
+            trail.startWidth = 0.08f;
+            trail.endWidth = 0.01f;
+            trail.material = new Material(Shader.Find("Sprites/Default"));
+            trail.startColor = new Color(1f, 1f, 1f, 0.6f);
+            trail.endColor = new Color(1f, 1f, 1f, 0f);
+
+            if (transport == null)
+                transport = FindFirstObjectByType<NetworkSimulator>();
+        }
+
+        static Sprite CreateDiamondSprite(Color color)
+        {
+            int size = 64;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            Vector2 center = Vector2.one * (size / 2f);
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float dx = Mathf.Abs(x - center.x) / (size / 2f);
+                float dy = Mathf.Abs(y - center.y) / (size / 2f);
+                float alpha = Mathf.Clamp01(1f - (dx + dy) + 0.05f) > 0.05f ? 1f : 0f;
+                tex.SetPixel(x, y, new Color(color.r, color.g, color.b, alpha));
+            }
+
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, size, size), Vector2.one * 0.5f, size);
         }
 
         void Update()
@@ -87,11 +121,11 @@ namespace Network
             transform.position = basePos;
 
             _sendTimer += Time.deltaTime;
-            float sendInterval = 1f / NetworkSimulator.Instance.sendRateHz;
+            float sendInterval = 1f / transport.sendRateHz;
             if (_sendTimer >= sendInterval)
             {
                 _sendTimer -= sendInterval;
-                _transport.Send(new NetworkSimulator.Snapshot
+                transport.Send(new NetworkSimulator.Snapshot
                 {
                     timestamp = Time.time,
                     position = TruePosition,

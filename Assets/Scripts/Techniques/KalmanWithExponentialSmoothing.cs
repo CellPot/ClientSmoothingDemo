@@ -27,10 +27,11 @@ namespace Techniques
         private float   _lastSnapshotTime;
         private float   _timeSinceSnapshot;
 
-        void Awake()
+        protected override void Awake()
         {
             techniqueName = "Kalman + Exponential Smoothing";
             color = new Color(0.6f, 1f, 0.6f);
+            base.Awake();
         }
 
         protected override void OnEnable()

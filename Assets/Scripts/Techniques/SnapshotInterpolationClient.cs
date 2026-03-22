@@ -14,14 +14,16 @@ namespace Techniques
     {
         [Header("Settings")]
         [Tooltip("How far behind real-time (seconds) to render. Must be > one snapshot interval.")]
-        [Range(0.05f, 0.5f)] public float bufferDelay = 0.15f;
+        [Range(0.05f, 0.5f)]
+        public float bufferDelay = 0.15f;
 
         private List<NetworkSimulator.Snapshot> _buffer = new List<NetworkSimulator.Snapshot>();
 
-        void Awake()
+        protected override void Awake()
         {
             techniqueName = "Snapshot Interpolation";
             color = Color.cyan;
+            base.Awake();
         }
 
         protected override void OnSnapshot(NetworkSimulator.Snapshot snap)
@@ -40,21 +42,22 @@ namespace Techniques
 
             // Find the two snapshots that straddle renderTime
             NetworkSimulator.Snapshot from = _buffer[0];
-            NetworkSimulator.Snapshot to   = _buffer[0];
+            NetworkSimulator.Snapshot to = _buffer[0];
 
             for (int i = 0; i < _buffer.Count - 1; i++)
             {
                 if (_buffer[i].timestamp <= renderTime && _buffer[i + 1].timestamp >= renderTime)
                 {
                     from = _buffer[i];
-                    to   = _buffer[i + 1];
+                    to = _buffer[i + 1];
                     break;
                 }
+
                 // If renderTime is past the newest snapshot, extrapolate from last two
                 if (i == _buffer.Count - 2)
                 {
                     from = _buffer[_buffer.Count - 2];
-                    to   = _buffer[_buffer.Count - 1];
+                    to = _buffer[_buffer.Count - 1];
                 }
             }
 

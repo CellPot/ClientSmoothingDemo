@@ -15,10 +15,11 @@ namespace Techniques
 
         private Vector3 _targetPosition;
 
-        void Awake()
+        protected override void Awake()
         {
             techniqueName = "Client-Side Interpolation";
             color = Color.yellow;
+            base.Awake();
         }
 
         protected override void OnSnapshot(NetworkSimulator.Snapshot snap)

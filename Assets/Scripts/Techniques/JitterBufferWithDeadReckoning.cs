@@ -33,10 +33,11 @@ namespace Techniques
         private Vector3 _reckonVel;
         private float _reckonTimer; // how long we've been reckoning
 
-        void Awake()
+        protected override void Awake()
         {
             techniqueName = "Jitter Buffer + Dead Reckoning";
             color = new Color(0f, 0.85f, 1f);
+            base.Awake();
         }
 
         protected override void OnSnapshot(NetworkSimulator.Snapshot snap)

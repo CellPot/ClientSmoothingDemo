@@ -26,10 +26,11 @@ namespace Techniques
         private Vector3 _currentPos;
         private bool _initialized;
 
-        void Awake()
+        protected override void Awake()
         {
             techniqueName = "Jitter Buffer";
             color = new Color(0.5f, 0.5f, 1f); // periwinkle
+            base.Awake();
         }
 
         protected override void OnSnapshot(NetworkSimulator.Snapshot snap)

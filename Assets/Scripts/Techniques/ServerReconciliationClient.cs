@@ -32,10 +32,11 @@ namespace Techniques
         private float _timeSinceConfirm;
         private bool _initialized;
 
-        void Awake()
+        protected override void Awake()
         {
             techniqueName = "Client Prediction + Reconciliation";
             color = new Color(1f, 1f, 0.2f);
+            base.Awake();
         }
 
         protected override void OnSnapshot(NetworkSimulator.Snapshot snap)
@@ -82,7 +83,7 @@ namespace Techniques
                     _inputHistory.Add(new InputRecord
                     {
                         // Stamp as "when server will confirm this" = now + RTT
-                        timestamp = Time.time + (NetworkSimulator.Instance.baseLatencyMs * 2f / 1000f),
+                        timestamp = Time.time + (transport.baseLatencyMs * 2f / 1000f),
                         delta = delta
                     });
                     if (_inputHistory.Count > 256)

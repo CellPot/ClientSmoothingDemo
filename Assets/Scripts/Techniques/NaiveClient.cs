@@ -10,10 +10,11 @@ namespace Techniques
     /// </summary>
     public class NaiveClient : BaseClientEntity
     {
-        void Awake()
+        protected override void Awake()
         {
             techniqueName = "Naive (No Smoothing)";
             color = Color.red;
+            base.Awake();
         }
 
         protected override void OnSnapshot(NetworkSimulator.Snapshot snap)
