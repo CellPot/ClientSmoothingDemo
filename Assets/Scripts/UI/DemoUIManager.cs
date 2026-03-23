@@ -66,39 +66,46 @@ namespace UI
             GUILayout.BeginArea(_leftPanel, "Network Conditions", GUI.skin.window);
             GUILayout.Space(8);
 
-            GUILayout.Label($"Latency: {networkSim.baseLatencyMs:F0} ms");
-            networkSim.baseLatencyMs = GUILayout.HorizontalSlider(networkSim.baseLatencyMs, 0f, 500f);
+            if (networkSim)
+            {
+                GUILayout.Label($"Latency: {networkSim.baseLatencyMs:F0} ms");
+                networkSim.baseLatencyMs = GUILayout.HorizontalSlider(networkSim.baseLatencyMs, 0f, 500f);
 
-            GUILayout.Label($"Jitter: ±{networkSim.jitterMs:F0} ms");
-            networkSim.jitterMs = GUILayout.HorizontalSlider(networkSim.jitterMs, 0f, 200f);
+                GUILayout.Label($"Jitter: ±{networkSim.jitterMs:F0} ms");
+                networkSim.jitterMs = GUILayout.HorizontalSlider(networkSim.jitterMs, 0f, 200f);
 
-            GUILayout.Label($"Packet Loss: {networkSim.packetLossRate * 100:F0}%");
-            networkSim.packetLossRate = GUILayout.HorizontalSlider(networkSim.packetLossRate, 0f, 0.5f);
+                GUILayout.Label($"Packet Loss: {networkSim.packetLossRate * 100:F0}%");
+                networkSim.packetLossRate = GUILayout.HorizontalSlider(networkSim.packetLossRate, 0f, 0.5f);
 
-            GUILayout.Label($"Send Rate: {networkSim.sendRateHz:F0} Hz");
-            networkSim.sendRateHz = GUILayout.HorizontalSlider(networkSim.sendRateHz, 1f, 64f);
+                GUILayout.Label($"Send Rate: {networkSim.sendRateHz:F0} Hz");
+                networkSim.sendRateHz = GUILayout.HorizontalSlider(networkSim.sendRateHz, 1f, 64f);
+            }
 
             GUILayout.Label($"Server Speed: {server.timeScale:F2}x");
             server.timeScale = GUILayout.HorizontalSlider(server.timeScale, 0.1f, 5f);
 
             server.allowBackMove = GUILayout.Toggle(server.allowBackMove, " Allow Back-Move");
             server.playerControlled = GUILayout.Toggle(server.playerControlled, " Player Controlled (WASD)");
+            if (networkSim)
+            {
+                GUILayout.Space(8);
+                GUILayout.Label("── Presets ──", _headerStyle);
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("Perfect")) ApplyPreset(0, 0, 0, 20);
+                if (GUILayout.Button("LAN")) ApplyPreset(10, 5, 0, 20);
+                if (GUILayout.Button("Broadband")) ApplyPreset(80, 20, 0.02f, 20);
+                GUILayout.EndHorizontal();
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("Mobile")) ApplyPreset(150, 60, 0.05f, 10);
+                if (GUILayout.Button("Lossy")) ApplyPreset(200, 100, 0.15f, 10);
+                if (GUILayout.Button("Chaos")) ApplyPreset(300, 150, 0.25f, 5);
+                GUILayout.EndHorizontal();
 
-            GUILayout.Space(8);
-            GUILayout.Label("── Presets ──", _headerStyle);
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Perfect")) ApplyPreset(0, 0, 0, 20);
-            if (GUILayout.Button("LAN")) ApplyPreset(10, 5, 0, 20);
-            if (GUILayout.Button("Broadband")) ApplyPreset(80, 20, 0.02f, 20);
-            GUILayout.EndHorizontal();
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Mobile")) ApplyPreset(150, 60, 0.05f, 10);
-            if (GUILayout.Button("Lossy")) ApplyPreset(200, 100, 0.15f, 10);
-            if (GUILayout.Button("Chaos")) ApplyPreset(300, 150, 0.25f, 5);
-            GUILayout.EndHorizontal();
+                GUILayout.Space(6);
+                GUILayout.Label(
+                    $"Packets sent: {networkSim.packetsSentTotal}  Dropped: {networkSim.packetsDroppedTotal}");
+            }
 
-            GUILayout.Space(6);
-            GUILayout.Label($"Packets sent: {networkSim.packetsSentTotal}  Dropped: {networkSim.packetsDroppedTotal}");
             GUILayout.EndArea();
 
             // ── Right panel: per-technique metrics ────────────────────────────────
@@ -140,6 +147,8 @@ namespace UI
 
         void ApplyPreset(float lat, float jitter, float loss, float rate)
         {
+            if (!networkSim) return;
+            
             networkSim.baseLatencyMs = lat;
             networkSim.jitterMs = jitter;
             networkSim.packetLossRate = loss;
@@ -155,6 +164,8 @@ namespace UI
 
         void ResetAllMetrics()
         {
+            if (!networkSim) return;
+
             foreach (var c in clients) c.ResetMetrics();
             networkSim.packetsSentTotal = 0;
             networkSim.packetsDroppedTotal = 0;
