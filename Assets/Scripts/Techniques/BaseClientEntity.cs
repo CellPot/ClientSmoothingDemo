@@ -49,17 +49,10 @@ namespace Techniques
         {
             if (_transport != null) _transport.RegisterListener(OnSnapshotReceived);
             // Late-spawned server support (Mirror prefab spawn):
-            if (server == null)
-            {
-                if (Network.ServerEntity.Instance != null)
-                {
-                    server = Network.ServerEntity.Instance;
-                }
-                else
-                {
-                    Network.ServerEntity.OnSpawned += HandleServerSpawned;
-                }
-            }
+            if (server == null && Network.ServerEntity.Instance != null)
+                server = Network.ServerEntity.Instance;
+            Network.ServerEntity.OnSpawned -= HandleServerSpawned;
+            Network.ServerEntity.OnSpawned += HandleServerSpawned;
         }
 
         protected virtual void OnDisable()
@@ -95,12 +88,8 @@ namespace Techniques
 
         private void HandleServerSpawned(Network.ServerEntity srv)
         {
-            if (server == null)
-            {
-                server = srv;
-                // once assigned, no need to keep listening
-                Network.ServerEntity.OnSpawned -= HandleServerSpawned;
-            }
+            // Keep listening: a restarted client spawns a new ServerEntity and the old reference is destroyed.
+            server = srv;
         }
 
         static Sprite CreateCircleSprite(Color color)

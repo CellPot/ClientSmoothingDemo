@@ -62,6 +62,27 @@ namespace Network
             UnregisterClientHandler();
         }
 
+        // NetworkClient.Shutdown() (client stopped) clears every message handler, so a restarted client in the
+        // same session would not know our messages and Mirror disconnects it ("failed to unpack and invoke
+        // message"). Track the client lifetime and register again for each new session.
+        void Update()
+        {
+            if (!NetworkClient.active)
+            {
+                if (_clientHandlerRegistered)
+                {
+                    _clientHandlerRegistered = false;
+                    _truth.Clear();
+                    _hasOffset = false;
+                    _hasLast = false;
+                }
+            }
+            else if (!_clientHandlerRegistered)
+            {
+                RegisterClientHandler();
+            }
+        }
+
         public void RegisterListener(Action<NetworkSimulator.Snapshot> listener)
         {
             if (!_listeners.Contains(listener))
@@ -118,8 +139,9 @@ namespace Network
                 return;
 
             // Register a persistent handler; Mirror will queue messages after client connects
-            NetworkClient.RegisterHandler<SnapshotMessage>(OnSnapshotMessage, false);
-            NetworkClient.RegisterHandler<TruthMessage>(OnTruthMessage, false);
+            // Replace, not Register: a handler set before the client started may still be there (no warning).
+            NetworkClient.ReplaceHandler<SnapshotMessage>(OnSnapshotMessage, false);
+            NetworkClient.ReplaceHandler<TruthMessage>(OnTruthMessage, false);
             _clientHandlerRegistered = true;
         }
 
