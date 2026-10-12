@@ -95,9 +95,11 @@ namespace UI
 
             _rightPanel = new Rect(Screen.width - 280, 60, 270, clients.Count * 100 + 40);
 
-            // Apply solo visibility
+            // Apply solo visibility. A server-only instance receives no snapshots, so the technique circles
+            // would just sit idle: hide them until a client (or host) is running.
+            bool serverOnly = networkSim == null && NetworkServer.active && !NetworkClient.active;
             for (int i = 0; i < clients.Count; i++)
-                clients[i].gameObject.SetActive(!_hidden.Contains(i));
+                clients[i].gameObject.SetActive(!serverOnly && !_hidden.Contains(i));
 
             // Keyboard shortcut: Space = pause, R = reset metrics
             if (Input.GetKeyDown(KeyCode.Space)) TogglePause();
