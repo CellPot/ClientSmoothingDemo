@@ -12,10 +12,12 @@ namespace Techniques
     /// and replays all unacknowledged inputs on top of it.
     /// This gives zero perceived input latency while staying authoritative-server correct.
     /// Most common in FPS / action games (Quake, Overwatch, Rocket League).
+    ///
+    /// In this demo the server entity moves on its own path, so the benchmark runs the AUTOMATIC path:
+    /// extrapolate from the last confirmed position/velocity and blend toward it (no inputs to replay).
+    /// The input-replay path only runs with "Player Controlled" on the host machine; clients do not send
+    /// their inputs to the server, so it is not meaningful from a remote client.
     /// </summary>
-    using System.Collections.Generic;
-    using UnityEngine;
-
     public class ServerReconciliationClient : BaseClientEntity
     {
         [Range(1f, 20f)] public float correctionBlend = 12f;
