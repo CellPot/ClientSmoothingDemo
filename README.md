@@ -4,7 +4,7 @@ A Unity demo that compares client-side network smoothing techniques against one 
 
 ![Demo: eleven smoothing techniques following the server entity while the network preset changes](docs/demo.gif)
 
-**Unity 6000.3** · Networking by [Mirror](https://github.com/MirrorNetworking/Mirror) (included under `Assets/Mirror`)
+**[Download for Windows](https://github.com/CellPot/ClientSmoothingDemo/releases/latest)** (Mirror scene, no Unity needed) · **Unity 6000.3** · Networking by [Mirror](https://github.com/MirrorNetworking/Mirror) (included under `Assets/Mirror`)
 
 - [Techniques](#techniques)
 - [Scenes](#scenes)
@@ -41,6 +41,10 @@ Both live in `Assets/Scenes`, are supported, and are benchmarked.
 Both scenes measure error the same way ([see below](#how-error-is-measured)), so results are comparable, although the loss models differ (KCP vs. the simulator's random drop).
 
 ## Running it
+
+**Prebuilt (Windows):** download the zip from [Releases](https://github.com/CellPot/ClientSmoothingDemo/releases/latest) and start `ClientSmoothing.exe` twice. Start the host in the first window, connect as client to `localhost` in the second, and run the benchmark from the client window. Both windows must come from the same build.
+
+**From source:** the options below.
 
 **SimulatedNetwork:** open the scene and press Play.
 
