@@ -298,8 +298,15 @@ namespace UI
                 GUILayout.Label("P95", GUILayout.Width(60));
                 GUILayout.Label("Max", GUILayout.Width(60));
                 GUILayout.Label("Delay", GUILayout.Width(60));
+                GUILayout.Label("AdjMean", GUILayout.Width(60));
+                GUILayout.Label("AdjP95", GUILayout.Width(60));
+                GUILayout.Label("RMSdv", GUILayout.Width(60));
+                GUILayout.Label("Stutter", GUILayout.Width(60));
+                GUILayout.Label("Score", GUILayout.Width(60));
                 GUILayout.EndHorizontal();
-                foreach (var row in r.rows)
+                var ranked = new List<BenchmarkRunner.Row>(r.rows);
+                ranked.Sort((a, b) => a.score.CompareTo(b.score));
+                foreach (var row in ranked)
                 {
                     GUILayout.BeginHorizontal();
                     GUILayout.Label(row.technique, GUILayout.Width(220));
@@ -307,6 +314,11 @@ namespace UI
                     GUILayout.Label($"{row.p95:F3}", GUILayout.Width(60));
                     GUILayout.Label($"{row.max:F3}", GUILayout.Width(60));
                     GUILayout.Label($"{row.delayMs:F0}ms", GUILayout.Width(60));
+                    GUILayout.Label($"{row.adjMean:F3}", GUILayout.Width(60));
+                    GUILayout.Label($"{row.adjP95:F3}", GUILayout.Width(60));
+                    GUILayout.Label($"{row.rmsDv:F1}", GUILayout.Width(60));
+                    GUILayout.Label($"{row.stutters}", GUILayout.Width(60));
+                    GUILayout.Label($"{row.score:F2}", GUILayout.Width(60));
                     GUILayout.EndHorizontal();
                 }
 

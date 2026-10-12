@@ -662,9 +662,9 @@ MonoBehaviour:
   currentError: 0
   averageError: 0
   maxError: 0
-  processNoise: 0.05
-  measurementNoise: 0.8
-  smoothSpeed: 12
+  processNoise: 1
+  measurementNoise: 0.05
+  smoothSpeed: 20
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -990,8 +990,8 @@ MonoBehaviour:
   currentError: 0
   averageError: 0
   maxError: 0
-  processNoise: 0.05
-  measurementNoise: 0.8
+  processNoise: 1
+  measurementNoise: 0.05
 --- !u!1 &1334058894
 GameObject:
   m_ObjectHideFlags: 0

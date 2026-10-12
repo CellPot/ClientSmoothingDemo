@@ -25,6 +25,16 @@ namespace Techniques
         [HideInInspector] public float averageError;
         [HideInInspector] public float maxError;
 
+        /// <summary>Error vs the truth rewound by <see cref="AddedDelaySeconds"/> (intentional buffering not counted).</summary>
+        [HideInInspector] public float currentAdjustedError;
+        /// <summary>Frame-to-frame change in velocity (units/s); lower = smoother.</summary>
+        [HideInInspector] public float currentVelocityChange;
+
+        /// <summary>Diagnostics: description of the frame with the largest error so far.</summary>
+        [HideInInspector] public string maxErrorInfo = "";
+
+        private Vector3 _prevPos, _prevVel;
+        private bool _hasPrevPos, _hasPrevVel;
         private float _errorAccum;
         private int _errorSamples;
         private Sprite _sprite;
@@ -146,7 +156,40 @@ namespace Techniques
             _errorAccum += currentError;
             _errorSamples++;
             averageError = _errorAccum / _errorSamples;
-            if (currentError > maxError) maxError = currentError;
+            if (currentError > maxError)
+            {
+                maxError = currentError;
+                maxErrorInfo = $"{System.DateTime.Now:HH:mm:ss.fff} err={currentError:F2} own={transform.position} ref={reference} " +
+                               $"sinceSnap={(hasSnapshot ? Time.time - latestSnapshot.timestamp : float.NaN):F3}s " +
+                               $"truthAge={(_reference != null ? _reference.TruthAge(Time.time) : float.NaN):F3}s";
+            }
+
+            // Delay-adjusted: compare with where the truth was AddedDelaySeconds ago, so intentional buffering isn't "error".
+            // Without a truth history (simulator scene) there is nothing to rewind, so it equals the plain error.
+            currentAdjustedError = currentError;
+            if (_reference != null && AddedDelaySeconds > 0f &&
+                _reference.TryGetTruth(Time.time - AddedDelaySeconds, out var delayedTruth))
+                currentAdjustedError = Vector3.Distance(transform.position, delayedTruth);
+
+            TrackSmoothness();
+        }
+
+        // Change in velocity between consecutive frames (units/s). Stutter and snaps show up as large values.
+        private void TrackSmoothness()
+        {
+            Vector3 pos = transform.position;
+            float dt = Time.deltaTime;
+            currentVelocityChange = 0f;
+            if (_hasPrevPos && dt > 1e-4f)
+            {
+                Vector3 vel = (pos - _prevPos) / dt;
+                if (_hasPrevVel) currentVelocityChange = (vel - _prevVel).magnitude;
+                _prevVel = vel;
+                _hasPrevVel = true;
+            }
+
+            _prevPos = pos;
+            _hasPrevPos = true;
         }
 
         public string DebugState() =>
@@ -155,7 +198,9 @@ namespace Techniques
 
         public void ResetMetrics()
         {
-            currentError = averageError = maxError = 0f;
+            currentError = averageError = maxError = currentAdjustedError = currentVelocityChange = 0f;
+            maxErrorInfo = "";
+            _hasPrevPos = _hasPrevVel = false;
             _errorAccum = 0f;
             _errorSamples = 0;
         }

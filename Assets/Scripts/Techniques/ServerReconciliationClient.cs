@@ -22,6 +22,9 @@ namespace Techniques
         [Tooltip("Assumed one-way latency, used only when there is no Mirror connection (simulator scene).")]
         public float baseLatencyMs = 100;
 
+        // On the automatic path the output chases the predicted position: lag is 1/correctionBlend seconds.
+        public override float AddedDelaySeconds => 1f / correctionBlend;
+
         // Measured RTT when running over Mirror; configured fallback otherwise.
         private float RttSeconds => NetworkClient.active ? (float)NetworkTime.rtt : baseLatencyMs * 2f / 1000f;
 

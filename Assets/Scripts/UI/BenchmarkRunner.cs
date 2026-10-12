@@ -21,11 +21,16 @@ namespace UI
         public const float Warmup = 3f;
         public const float Duration = 20f;
         public const int Seed = 12345;
+        public const float StutterThreshold = 15f; // velocity change (units/s) in one frame counted as a stutter
 
         public struct Row
         {
             public string technique;
             public float mean, p95, max, delayMs;
+            public float adjMean, adjP95; // vs truth rewound by the added delay
+            public float rmsDv;           // RMS frame-to-frame velocity change (smoothness, lower = smoother)
+            public int stutters;
+            public float score;           // combined rank, lower is better, see Score()          // frames with a velocity change above StutterThreshold
         }
 
         public class PresetResult
@@ -41,7 +46,7 @@ namespace UI
         public readonly List<PresetResult> Results = new List<PresetResult>();
 
         private DemoUIManager _ui;
-        private List<List<float>> _samples;
+        private List<List<float>> _samples, _adjSamples, _dvSamples;
         private bool _recording;
         private Coroutine _routine;
         private NetConditions _restore;
@@ -74,7 +79,10 @@ namespace UI
             for (int i = 0; i < _ui.clients.Count; i++)
             {
                 var c = _ui.clients[i];
-                if (c.gameObject.activeInHierarchy) _samples[i].Add(c.currentError);
+                if (!c.gameObject.activeInHierarchy) continue;
+                _samples[i].Add(c.currentError);
+                _adjSamples[i].Add(c.currentAdjustedError);
+                _dvSamples[i].Add(c.currentVelocityChange);
             }
         }
 
@@ -110,7 +118,14 @@ namespace UI
 
             var clients = _ui.clients;
             _samples = new List<List<float>>();
-            foreach (var _ in clients) _samples.Add(new List<float>());
+            _adjSamples = new List<List<float>>();
+            _dvSamples = new List<List<float>>();
+            foreach (var _ in clients)
+            {
+                _samples.Add(new List<float>());
+                _adjSamples.Add(new List<float>());
+                _dvSamples.Add(new List<float>());
+            }
 
             for (int p = 0; p < NetPresets.All.Length; p++)
             {
@@ -131,9 +146,12 @@ namespace UI
                 {
                     clients[i].ResetMetrics();
                     _samples[i].Clear();
+                    _adjSamples[i].Clear();
+                    _dvSamples[i].Clear();
                     startCounts[i] = clients[i].snapshotsReceived;
                 }
 
+                NetDiagnostics.Write($"[bench] {preset.name} recording started");
                 _recording = true;
                 for (float t = 0; t < Duration; t += Time.unscaledDeltaTime)
                 {
@@ -146,9 +164,13 @@ namespace UI
                 var result = new PresetResult { preset = preset };
                 for (int i = 0; i < clients.Count; i++)
                 {
-                    result.rows.Add(Summarize(clients[i], _samples[i]));
+                    result.rows.Add(Summarize(clients[i], _samples[i], _adjSamples[i], _dvSamples[i]));
                     if (i == 0) result.rxHz = (clients[i].snapshotsReceived - startCounts[i]) / Duration;
                 }
+
+                NetDiagnostics.Write($"[bench] {preset.name} recording done; worst-error frame per technique:");
+                for (int i = 0; i < clients.Count; i++)
+                    NetDiagnostics.Write($"[bench]   {clients[i].techniqueName}: {clients[i].maxErrorInfo}");
 
                 Results.Add(result);
             }
@@ -156,7 +178,7 @@ namespace UI
             Finish($"Done. {WriteCsv()}");
         }
 
-        static Row Summarize(Techniques.BaseClientEntity c, List<float> samples)
+        static Row Summarize(Techniques.BaseClientEntity c, List<float> samples, List<float> adj, List<float> dv)
         {
             var row = new Row { technique = c.techniqueName, delayMs = c.AddedDelaySeconds * 1000f };
             int n = samples.Count;
@@ -167,10 +189,41 @@ namespace UI
             double sum = 0;
             foreach (float s in samples) sum += s;
             row.mean = (float)(sum / n);
-            row.p95 = sorted[Mathf.Clamp((int)Math.Ceiling(0.95 * n) - 1, 0, n - 1)];
+            row.p95 = Percentile95(sorted);
             row.max = sorted[n - 1];
+
+            if (adj.Count > 0)
+            {
+                var adjSorted = new List<float>(adj);
+                adjSorted.Sort();
+                double adjSum = 0;
+                foreach (float s in adj) adjSum += s;
+                row.adjMean = (float)(adjSum / adj.Count);
+                row.adjP95 = Percentile95(adjSorted);
+            }
+
+            if (dv.Count > 0)
+            {
+                double sq = 0;
+                foreach (float d in dv)
+                {
+                    sq += (double)d * d;
+                    if (d > StutterThreshold) row.stutters++;
+                }
+
+                row.rmsDv = (float)Math.Sqrt(sq / dv.Count);
+            }
+
+            row.score = Score(row);
             return row;
         }
+
+        // Combined rank (lower = better): delay-adjusted accuracy + roughness + intentional lag. The weights are a
+        // judgement call (1 u of error ~ 50 u/s of velocity change ~ 330 ms of delay); the CSV keeps the raw columns.
+        public static float Score(Row r) => r.adjMean + 0.02f * r.rmsDv + 0.003f * r.delayMs;
+
+        static float Percentile95(List<float> sorted) =>
+            sorted[Mathf.Clamp((int)Math.Ceiling(0.95 * sorted.Count) - 1, 0, sorted.Count - 1)];
 
         void Finish(string status)
         {
@@ -192,7 +245,7 @@ namespace UI
                 var ci = CultureInfo.InvariantCulture;
                 var sb = new StringBuilder();
                 sb.AppendLine($"# scene={SceneManager.GetActiveScene().name} mode={mode} seed={Seed} warmup={Warmup}s duration={Duration}s date={DateTime.Now:s}");
-                sb.AppendLine("preset,latency_ms,jitter_ms,loss_pct,rx_hz,technique,mean,p95,max,added_delay_ms");
+                sb.AppendLine("preset,latency_ms,jitter_ms,loss_pct,rx_hz,technique,mean,p95,max,added_delay_ms,adj_mean,adj_p95,rms_dv,stutters,score");
                 foreach (var r in Results)
                 {
                     var c = r.preset.conditions;
@@ -201,7 +254,8 @@ namespace UI
                             r.preset.name, c.latencyMs.ToString("F0", ci), c.jitterMs.ToString("F0", ci),
                             c.lossPct.ToString("F0", ci), r.rxHz.ToString("F1", ci), row.technique.Replace(",", ";"),
                             row.mean.ToString("F4", ci), row.p95.ToString("F4", ci), row.max.ToString("F4", ci),
-                            row.delayMs.ToString("F0", ci)));
+                            row.delayMs.ToString("F0", ci), row.adjMean.ToString("F4", ci), row.adjP95.ToString("F4", ci),
+                            row.rmsDv.ToString("F3", ci), row.stutters.ToString(ci), row.score.ToString("F3", ci)));
                 }
 
                 string dir = Path.Combine(Application.persistentDataPath, "benchmarks");

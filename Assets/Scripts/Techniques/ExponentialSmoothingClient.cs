@@ -16,6 +16,9 @@ namespace Techniques
 
         [Range(1f, 64f)] public float sendRateHz = 20f;
 
+        // alpha is a per-snapshot blend, i.e. a first-order filter with rate k = -ln(1-alpha) * sendRateHz; lag is 1/k.
+        public override float AddedDelaySeconds => 1f / (-Mathf.Log(1f - smoothingAlpha) * sendRateHz);
+
         private Vector3 _smoothed;
         private Vector3 _target;
         private bool _initialized;

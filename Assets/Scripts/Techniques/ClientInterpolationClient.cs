@@ -13,6 +13,9 @@ namespace Techniques
         [Header("Settings")]
         [Range(1f, 30f)] public float lerpSpeed = 10f;
 
+        // Exponential chase of the latest position: steady-state lag is 1/lerpSpeed seconds.
+        public override float AddedDelaySeconds => 1f / lerpSpeed;
+
         private Vector3 _targetPosition;
 
         protected override void Awake()

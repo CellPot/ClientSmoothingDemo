@@ -16,6 +16,9 @@ namespace Techniques
         [Tooltip("Max prediction time before we stop extrapolating (avoids runaway).")]
         [Range(0.1f, 1f)] public float maxPredictTime = 0.5f;
 
+        // The output chases the extrapolated position exponentially: steady-state lag is 1/correctionSpeed seconds.
+        public override float AddedDelaySeconds => 1f / correctionSpeed;
+
         private Vector3 _predictedPosition;
         private Vector3 _velocity;
         private float   _timeSinceSnapshot;
