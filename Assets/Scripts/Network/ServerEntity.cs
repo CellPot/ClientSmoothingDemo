@@ -68,7 +68,6 @@ namespace Network
 
         void Awake()
         {
-            NetDiagnostics.Write($"ServerEntity Awake {DebugState()}");
             ResetPath(pathSeed);
             _transport = transportBehaviour as INetworkTransport ?? FindTransport();
             if (_transport == null)
@@ -106,7 +105,6 @@ namespace Network
         {
             base.OnStartServer();
             Instance = this;
-            NetDiagnostics.Write($"ServerEntity OnStartServer netId={netId}");
             CaptureConditions();
             OnSpawned?.Invoke(this);
         }
@@ -115,7 +113,6 @@ namespace Network
         {
             base.OnStartClient();
             Instance = this;
-            NetDiagnostics.Write($"ServerEntity OnStartClient netId={netId} isServer={isServer}");
             if (!isServer) ApplyToLatencySim(conditions);
             // In host mode OnStartServer already announced this instance.
             if (!isServer) OnSpawned?.Invoke(this);
@@ -133,15 +130,9 @@ namespace Network
             base.OnStopClient();
         }
 
-        public string DebugState() =>
-            $"{name} activeInHierarchy={gameObject.activeInHierarchy} enabled={enabled} driveMode={driveMode} " +
-            $"hasNetIdentity={netIdentity != null} hasTransport={_transport != null} sendRateHz={sendRateHz} " +
-            $"timeScale={timeScale} playerControlled={playerControlled} pathTime={_pathTime:F2} pos={transform.position}";
-
         // The simulator scene places this object without Mirror starting it, so the NetworkBehaviour
         // accessors (isClient, netId...) must not be trusted unless a NetworkIdentity is present.
         bool IsNetworkedClient => netIdentity != null && isClient;
-        string NetIdText => netIdentity != null ? netId.ToString() : "-";
 
         // ── Seeded path ─────────────────────────────────────────────────────────
 
@@ -156,7 +147,6 @@ namespace Network
             _kickFrom = _kickEffective = Vector3.zero;
             _kickRamp = 1f;
             _hasPrev = false;
-            NetDiagnostics.Write($"[server] ResetPath seed={seed} pos={transform.position}");
         }
 
         Vector3 RandomInCircle()
@@ -238,14 +228,8 @@ namespace Network
                    ?? FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None).OfType<INetworkTransport>().FirstOrDefault();
         }
 
-        void OnDisable()
-        {
-            NetDiagnostics.Write("ServerEntity OnDisable");
-        }
-
         void OnDestroy()
         {
-            NetDiagnostics.Write($"ServerEntity OnDestroy netId={NetIdText}");
             if (Instance == this) Instance = null;
             if (_sprite != null)
             {
@@ -318,7 +302,6 @@ namespace Network
                         _kickDecay = 1f;
                         _kickFrom = _kickEffective;
                         _kickRamp = 0f;
-                        NetDiagnostics.Write($"[server] kick jump={(_kickOffset - _kickFrom).magnitude:F2} pathTime={_pathTime:F2}");
                     }
 
                     _kickDecay = Mathf.MoveTowards(_kickDecay, 0f, Time.deltaTime * 1.5f);

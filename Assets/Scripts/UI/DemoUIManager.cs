@@ -190,9 +190,6 @@ namespace UI
                 GUILayout.Label("Waiting for server...");
             }
 
-            if (!networkSim)
-                GUILayout.Label(MirrorStatus());
-
             bool hasRef = networkSim || mirrorTransport;
             if (hasRef)
             {
@@ -438,27 +435,6 @@ namespace UI
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────
-
-        // Diagnostic: which role this process plays and what Mirror has spawned/readied.
-        static string MirrorStatus()
-        {
-            string role = NetworkServer.active && NetworkClient.active ? "Host"
-                : NetworkServer.active ? "Server only"
-                : NetworkClient.active ? "Client"
-                : "Offline";
-            string s = $"[{role}]";
-            if (NetworkServer.active)
-            {
-                int ready = 0;
-                foreach (var conn in NetworkServer.connections.Values)
-                    if (conn.isReady) ready++;
-                s += $" conns={NetworkServer.connections.Count} ready={ready} spawned={NetworkServer.spawned.Count}";
-            }
-
-            if (NetworkClient.active && !NetworkServer.active)
-                s += $" connected={NetworkClient.isConnected} ready={NetworkClient.ready} spawned={NetworkClient.spawned.Count}";
-            return s;
-        }
 
         public NetConditions GetConditions() => _cond;
 

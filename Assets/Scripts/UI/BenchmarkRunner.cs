@@ -151,7 +151,6 @@ namespace UI
                     startCounts[i] = clients[i].snapshotsReceived;
                 }
 
-                NetDiagnostics.Write($"[bench] {preset.name} recording started");
                 _recording = true;
                 for (float t = 0; t < Duration; t += Time.unscaledDeltaTime)
                 {
@@ -167,10 +166,6 @@ namespace UI
                     result.rows.Add(Summarize(clients[i], _samples[i], _adjSamples[i], _dvSamples[i]));
                     if (i == 0) result.rxHz = (clients[i].snapshotsReceived - startCounts[i]) / Duration;
                 }
-
-                NetDiagnostics.Write($"[bench] {preset.name} recording done; worst-error frame per technique:");
-                for (int i = 0; i < clients.Count; i++)
-                    NetDiagnostics.Write($"[bench]   {clients[i].techniqueName}: {clients[i].maxErrorInfo}");
 
                 Results.Add(result);
             }

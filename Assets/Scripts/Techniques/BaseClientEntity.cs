@@ -30,8 +30,6 @@ namespace Techniques
         /// <summary>Frame-to-frame change in velocity (units/s); lower = smoother.</summary>
         [HideInInspector] public float currentVelocityChange;
 
-        /// <summary>Diagnostics: description of the frame with the largest error so far.</summary>
-        [HideInInspector] public string maxErrorInfo = "";
 
         private Vector3 _prevPos, _prevVel;
         private bool _hasPrevPos, _hasPrevVel;
@@ -156,13 +154,7 @@ namespace Techniques
             _errorAccum += currentError;
             _errorSamples++;
             averageError = _errorAccum / _errorSamples;
-            if (currentError > maxError)
-            {
-                maxError = currentError;
-                maxErrorInfo = $"{System.DateTime.Now:HH:mm:ss.fff} err={currentError:F2} own={transform.position} ref={reference} " +
-                               $"sinceSnap={(hasSnapshot ? Time.time - latestSnapshot.timestamp : float.NaN):F3}s " +
-                               $"truthAge={(_reference != null ? _reference.TruthAge(Time.time) : float.NaN):F3}s";
-            }
+            if (currentError > maxError) maxError = currentError;
 
             // Delay-adjusted: compare with where the truth was AddedDelaySeconds ago, so intentional buffering isn't "error".
             // Without a truth history (simulator scene) there is nothing to rewind, so it equals the plain error.
@@ -192,14 +184,9 @@ namespace Techniques
             _hasPrevPos = true;
         }
 
-        public string DebugState() =>
-            $"{techniqueName} activeInHierarchy={gameObject.activeInHierarchy} enabled={enabled} hasTransport={_transport != null} " +
-            $"hasServer={server != null} snapshots={snapshotsReceived} pos={transform.position} err={currentError:F3}";
-
         public void ResetMetrics()
         {
             currentError = averageError = maxError = currentAdjustedError = currentVelocityChange = 0f;
-            maxErrorInfo = "";
             _hasPrevPos = _hasPrevVel = false;
             _errorAccum = 0f;
             _errorSamples = 0;

@@ -95,7 +95,6 @@ namespace Network
 
         private float MinDelaySeconds => Mathf.Max(0f, baseLatencyMs - jitterMs) / 1000f;
 
-        public float TruthAge(float localTime) => _truth.Age(localTime);
 
         public bool TryGetTruth(float localTime, out Vector3 position)
         {

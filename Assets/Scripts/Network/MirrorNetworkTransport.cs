@@ -46,8 +46,6 @@ namespace Network
         private float _windowMin;
         private int _windowCount;
         private bool _hasOffset;
-        private float _lastTruthArrival;
-        private float _loggedOffset;
 
         // Unreliable delivery can reorder/duplicate; drop stale snapshots (but accept a big
         // backwards jump as a new server session).
@@ -106,7 +104,6 @@ namespace Network
             NetworkServer.SendToAll(new TruthMessage { timestamp = timestamp, position = position }, Channels.Unreliable);
         }
 
-        public float TruthAge(float localTime) => _truth.Age(localTime);
 
         public bool TryGetTruth(float localTime, out Vector3 position)
         {
@@ -143,11 +140,6 @@ namespace Network
         {
             if (!_hasOffset) return; // clock offset comes from the first snapshot
 
-            float now = Time.unscaledTime;
-            if (_lastTruthArrival > 0f && now - _lastTruthArrival > 0.15f)
-                NetDiagnostics.Write($"[truth] gap {(now - _lastTruthArrival) * 1000f:F0}ms between truth packets");
-            _lastTruthArrival = now;
-
             _truth.Add(msg.timestamp + _offset, msg.position);
         }
 
@@ -180,12 +172,6 @@ namespace Network
                 {
                     _offset = Mathf.Min(_offset, sample);
                 }
-            }
-
-            if (Mathf.Abs(_offset - _loggedOffset) > 0.03f)
-            {
-                NetDiagnostics.Write($"[offset] clock offset {_loggedOffset * 1000f:F0}ms -> {_offset * 1000f:F0}ms");
-                _loggedOffset = _offset;
             }
 
             var snap = new NetworkSimulator.Snapshot

@@ -15,8 +15,5 @@ namespace Network
     public interface IReferenceSource
     {
         bool TryGetTruth(float localTime, out Vector3 position);
-
-        /// <summary>Diagnostics: how far <paramref name="localTime"/> is past the newest truth sample (seconds).</summary>
-        float TruthAge(float localTime) => 0f;
     }
 }

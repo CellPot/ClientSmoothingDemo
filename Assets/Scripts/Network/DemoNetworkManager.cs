@@ -59,7 +59,6 @@ namespace Network
         {
             // Keep default behavior; do not double-register prefabs here.
             base.OnClientConnect();
-            NetDiagnostics.Write($"OnClientConnect ready={NetworkClient.ready}");
         }
 
         public override void OnServerReady(NetworkConnectionToClient conn)
@@ -69,15 +68,12 @@ namespace Network
             NetworkServer.SpawnObjects();
 
             bool local = conn is LocalConnectionToClient;
-            NetDiagnostics.Write($"OnServerReady conn={conn.connectionId} local={local} isReady={conn.isReady} " +
-                                 $"hasPlayerObject={conn.identity != null} | {NetDiagnostics.DescribeServerWorld()}");
 
             // Mirror's SetClientReady only sends the world to connections that own a player object. This demo has
             // no players, so remote clients would never receive the ServerEntity: do the spawn ourselves.
             if (!local && conn.identity == null)
             {
                 SpawnWorldFor(conn);
-                NetDiagnostics.Write($"SpawnWorldFor conn={conn.connectionId} done | {NetDiagnostics.DescribeServerWorld()}");
             }
         }
 
@@ -96,7 +92,6 @@ namespace Network
         public override void OnServerConnect(NetworkConnectionToClient conn)
         {
             base.OnServerConnect(conn);
-            NetDiagnostics.Write($"OnServerConnect conn={conn.connectionId}");
         }
 
         public override void OnStopClient()

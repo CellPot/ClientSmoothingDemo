@@ -16,6 +16,7 @@ namespace UI
 
         private TrailRenderer _trail;
         private BaseClientEntity _client;
+        private Material _material;
 
         void Start()
         {
@@ -25,12 +26,18 @@ namespace UI
             _trail.time        = trailTime;
             _trail.startWidth  = trailWidth;
             _trail.endWidth    = 0.01f;
-            _trail.material    = new Material(Shader.Find("Sprites/Default"));
+            _material          = new Material(Shader.Find("Sprites/Default"));
+            _trail.material    = _material;
             _trail.startColor  = _client.color;
             _trail.endColor    = new Color(_client.color.r, _client.color.g, _client.color.b, 0f);
             _trail.numCapVertices   = 4;
             _trail.numCornerVertices = 4;
             _trail.generateLightingData = false;
+        }
+
+        void OnDestroy()
+        {
+            if (_material != null) Destroy(_material);
         }
     }
 }

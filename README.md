@@ -77,10 +77,6 @@ The benchmark runs every preset in turn (3 s settle, then 20 s of recording) on 
 Results appear in a window (sorted by score) and are saved as CSV to
 `<persistentDataPath>/benchmarks/` (on Windows: `%USERPROFILE%\AppData\LocalLow\<company>\<product>\benchmarks\`). Keep old CSVs; they are the regression record. Only compare runs made with the same code version.
 
-## Diagnostics
-
-`NetDiagnostics` and `SceneProbe` write `Logs/netdiag.log` inside each running project: server kicks, truth gaps, clock-offset changes and the worst-error frame per technique. Timestamps are wall-clock, so host and client logs line up.
-
 ## Notes
 
 - **Reconciliation:** the server entity moves on its own path, so the benchmark uses the automatic path (extrapolation plus blend). The input-replay path only makes sense with "Player Controlled" on the host machine; clients do not send their inputs to the server.

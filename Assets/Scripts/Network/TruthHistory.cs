@@ -30,8 +30,6 @@ namespace Network
             if (drop > 0) _samples.RemoveRange(0, drop);
         }
 
-        public float Age(float localTime) => _samples.Count == 0 ? float.NaN : localTime - _samples[_samples.Count - 1].t;
-
         public bool TryGet(float localTime, out Vector3 position)
         {
             position = default;
