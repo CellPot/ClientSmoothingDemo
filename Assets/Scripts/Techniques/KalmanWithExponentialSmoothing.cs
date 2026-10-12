@@ -13,14 +13,14 @@ namespace Techniques
     public class KalmanWithExponentialSmoothing : BaseClientEntity
     {
         [Header("Kalman")]
-        [Range(0.001f, 5f)] public float processNoise     = 1f;
-        [Range(0.001f, 5f)] public float measurementNoise = 0.05f;
+        [Range(0.001f, 5f)] public float processNoise     = 3f;
+        [Range(0.001f, 5f)] public float measurementNoise = 0.02f;
         [Range(0.05f, 1f)]  public float maxExtrapolation = 0.3f;
 
         [Header("Visual Smoothing")]
         [Tooltip("How quickly the visual follows the Kalman estimate. " +
                  "Lower = smoother but more lag. Higher = snappier.")]
-        [Range(1f, 30f)] public float smoothSpeed = 20f;
+        [Range(1f, 30f)] public float smoothSpeed = 30f;
 
         // A first-order lag chasing a moving target trails it by 1/k seconds.
         public override float AddedDelaySeconds => 1f / smoothSpeed;

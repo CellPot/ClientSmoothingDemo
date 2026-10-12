@@ -12,7 +12,10 @@ namespace Techniques
     public class DeadReckoningClient : BaseClientEntity
     {
         [Header("Settings")]
-        [Range(1f, 20f)]  public float correctionSpeed = 8f;
+        [Range(1f, 20f)]  public float correctionSpeed = 20f;
+        [Tooltip("How far the extrapolation base moves to a new snapshot (1 = take the snapshot as is). " +
+                 "Below 1 the base keeps lagging behind the truth.")]
+        [Range(0f, 1f)]   public float snapshotBlend = 1f;
         [Tooltip("Max prediction time before we stop extrapolating (avoids runaway).")]
         [Range(0.1f, 1f)] public float maxPredictTime = 0.5f;
 
@@ -36,7 +39,7 @@ namespace Techniques
             // Blend from predicted position back toward confirmed server position
             if (_initialized)
             {
-                _predictedPosition = Vector3.Lerp(_predictedPosition, snap.position, 0.5f);
+                _predictedPosition = Vector3.Lerp(_predictedPosition, snap.position, snapshotBlend);
             }
             else
             {

@@ -309,7 +309,8 @@ MonoBehaviour:
   currentError: 0
   averageError: 0
   maxError: 0
-  correctionSpeed: 8
+  correctionSpeed: 20
+  snapshotBlend: 1
   maxPredictTime: 0.5
 --- !u!1 &123390217
 GameObject:
@@ -662,9 +663,9 @@ MonoBehaviour:
   currentError: 0
   averageError: 0
   maxError: 0
-  processNoise: 1
-  measurementNoise: 0.05
-  smoothSpeed: 20
+  processNoise: 3
+  measurementNoise: 0.02
+  smoothSpeed: 30
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
