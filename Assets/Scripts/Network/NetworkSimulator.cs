@@ -20,6 +20,8 @@ namespace Network
 
         [Range(0f, 200f)] public float jitterMs = 30f;
         [Range(0f, 1f)] public float packetLossRate = 0.05f;
+        [Tooltip("Fraction of packets inserted at a random place in the delivery queue (like Mirror's LatencySimulation 'scramble').")]
+        [Range(0f, 1f)] public float scrambleRate = 0f;
         [Range(1f, 64f)] public float sendRateHz = 20f;
 
         [Header("Debug")] public bool showDebugGUI = true;
@@ -37,7 +39,13 @@ namespace Network
         {
             public Snapshot snapshot;
             public float deliverAt; // Time.time when it should arrive
+            public float rawTimestamp; // server timestamp before the clock rebase, for the stale check
         }
+
+        // Like MirrorNetworkTransport: unreliable delivery can reorder, so stale snapshots are dropped
+        // (but a big backwards jump counts as a new session).
+        private float _lastRawTimestamp;
+        private bool _hasLast;
 
         private List<PendingPacket> _pending = new List<PendingPacket>();
         private List<Action<Snapshot>> _listeners = new List<Action<Snapshot>>();
@@ -75,15 +83,24 @@ namespace Network
             float delay = Mathf.Max(0f, (baseLatencyMs + jitter) / 1000f);
             lastMeasuredLatency = delay * 1000f;
 
+            float raw = snapshot.timestamp;
+
             // Rebase onto the "client clock" like MirrorNetworkTransport does (timestamp + minimum one-way latency),
             // so buffered techniques and the truth reference share one timeline.
             snapshot.timestamp += MinDelaySeconds;
 
-            _pending.Add(new PendingPacket
+            var packet = new PendingPacket
             {
                 snapshot = snapshot,
-                deliverAt = Time.time + delay
-            });
+                deliverAt = Time.time + delay,
+                rawTimestamp = raw
+            };
+
+            // Same as LatencySimulation: a scrambled packet goes to a random place in the queue, and ready packets
+            // are flushed in queue order, so it can overtake (or be overtaken by) others that become ready together.
+            bool scramble = UnityEngine.Random.value < scrambleRate;
+            int index = scramble ? UnityEngine.Random.Range(0, _pending.Count + 1) : _pending.Count;
+            _pending.Insert(index, packet);
         }
 
         // The Mirror client rebases server time with the least-delayed packet's offset, so its reference is the
@@ -105,15 +122,24 @@ namespace Network
         void Update()
         {
             float now = Time.time;
-            for (int i = _pending.Count - 1; i >= 0; i--)
+            for (int i = 0; i < _pending.Count; )
             {
-                if (now >= _pending[i].deliverAt)
+                if (now < _pending[i].deliverAt)
                 {
-                    var snap = _pending[i].snapshot;
-                    foreach (var listener in _listeners)
-                        listener?.Invoke(snap);
-                    _pending.RemoveAt(i);
+                    i++;
+                    continue;
                 }
+
+                var packet = _pending[i];
+                _pending.RemoveAt(i);
+
+                if (_hasLast && packet.rawTimestamp <= _lastRawTimestamp && _lastRawTimestamp - packet.rawTimestamp < 1f)
+                    continue; // stale (reordered)
+                _lastRawTimestamp = packet.rawTimestamp;
+                _hasLast = true;
+
+                foreach (var listener in _listeners)
+                    listener?.Invoke(packet.snapshot);
             }
         }
 

@@ -64,7 +64,7 @@ Notes for the ParrelSync setup:
 ## How error is measured
 
 - The server stamps snapshots with its own clock. The client rebases them onto its local clock using the least-delayed packet it has seen, so the minimum one-way latency is not counted as error.
-- Snapshots are sent unreliably (stale or reordered ones are dropped).
+- Snapshots are sent unreliably (stale or reordered ones are dropped, in both scenes). The Reorder slider copies Mirror's `LatencySimulation` scramble: a scrambled packet is inserted at a random place in the delivery queue, so it only changes the order when several packets become ready in the same frame (rare at 5-20 Hz).
 - The server also streams its exact position at 60 Hz (metrics only). The client keeps about 3 s of that history and compares each technique with the true position at the matching local time. The simulator scene builds the same history, shifted by the minimum latency.
 - The toggle "Error vs. true path" falls back to the live server transform.
 - **Delay-adjusted error** compares against the truth rewound by the delay a technique adds on purpose (buffer depth, or the lag of its smoothing chase), so deliberate buffering is not counted as error.

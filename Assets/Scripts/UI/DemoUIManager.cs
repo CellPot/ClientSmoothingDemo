@@ -177,6 +177,7 @@ namespace UI
                     latencyMs = networkSim.baseLatencyMs,
                     jitterMs = networkSim.jitterMs,
                     lossPct = networkSim.packetLossRate * 100f,
+                    scramblePct = networkSim.scrambleRate * 100f,
                     sendRateHz = server ? server.sendRateHz : networkSim.sendRateHz
                 };
                 _condInit = true;
@@ -242,11 +243,8 @@ namespace UI
                 GUILayout.Label($"Packet Loss: {c.lossPct:F0}%");
                 c.lossPct = GUILayout.HorizontalSlider(c.lossPct, 0f, 50f);
 
-                if (!networkSim)
-                {
-                    GUILayout.Label($"Reorder: {c.scramblePct:F0}%");
-                    c.scramblePct = GUILayout.HorizontalSlider(c.scramblePct, 0f, 50f);
-                }
+                GUILayout.Label($"Reorder: {c.scramblePct:F0}%");
+                c.scramblePct = GUILayout.HorizontalSlider(c.scramblePct, 0f, 50f);
 
                 GUILayout.Label($"Send Rate: {c.sendRateHz:F0} Hz");
                 c.sendRateHz = GUILayout.HorizontalSlider(c.sendRateHz, 1f, 64f);
@@ -539,6 +537,7 @@ namespace UI
                 networkSim.baseLatencyMs = c.latencyMs;
                 networkSim.jitterMs = c.jitterMs;
                 networkSim.packetLossRate = c.lossPct / 100f;
+                networkSim.scrambleRate = c.scramblePct / 100f;
                 networkSim.sendRateHz = c.sendRateHz;
                 if (server) server.sendRateHz = c.sendRateHz;
             }
