@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using Mirror;
 using UnityEngine;
-using Random = UnityEngine.Random;
 
 namespace Network
 {
@@ -31,6 +30,12 @@ namespace Network
         [SerializeField] public DriveMode driveMode = DriveMode.Local;
         
         [Range(1f, 64f)] public float sendRateHz = 20f;
+
+        [Tooltip("Seed for the kick sequence. Same seed + ResetPath => identical path.")]
+        public int pathSeed = 12345;
+
+        // Network conditions, owned by the server and synced so any client UI can show/change them.
+        [SyncVar(hook = nameof(OnConditionsChanged))] public NetConditions conditions;
         [Header("Movement")] [Range(0.1f, 5f)] 
         public float timeScale = 1f;
         [Range(1f, 20f)] public float moveSpeed = 5f;
@@ -53,11 +58,13 @@ namespace Network
         private float _kickDecay;
         private float _pathTime;
         private bool _hasPrev;
+        private System.Random _rng;
         private Sprite _sprite;
         private Material _trailMaterial;
 
         void Awake()
         {
+            ResetPath(pathSeed);
             _transport = transportBehaviour as INetworkTransport ?? FindTransport();
             if (_transport == null)
                 Debug.LogWarning($"[{name}] No INetworkTransport found. Server will move but won't send snapshots until a transport is present.", this);
@@ -94,6 +101,8 @@ namespace Network
         {
             base.OnStartServer();
             Instance = this;
+            NetDiagnostics.Write($"ServerEntity OnStartServer netId={netId}");
+            CaptureConditions();
             OnSpawned?.Invoke(this);
         }
 
@@ -101,6 +110,8 @@ namespace Network
         {
             base.OnStartClient();
             Instance = this;
+            NetDiagnostics.Write($"ServerEntity OnStartClient netId={netId} isServer={isServer}");
+            if (!isServer) ApplyToLatencySim(conditions);
             // In host mode OnStartServer already announced this instance.
             if (!isServer) OnSpawned?.Invoke(this);
         }
@@ -117,6 +128,91 @@ namespace Network
             base.OnStopClient();
         }
 
+        // ── Seeded path ─────────────────────────────────────────────────────────
+
+        /// <summary>Restart the path from t=0 with a fresh seeded RNG (server side).</summary>
+        public void ResetPath(int seed)
+        {
+            _rng = new System.Random(seed);
+            _pathTime = 0f;
+            _kickTimer = 0f;
+            _kickOffset = Vector3.zero;
+            _kickDecay = 0f;
+            _hasPrev = false;
+        }
+
+        Vector3 RandomInCircle()
+        {
+            float angle = Rand(0f, Mathf.PI * 2f);
+            float radius = Mathf.Sqrt(Rand(0f, 1f));
+            return new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
+        }
+
+        float Rand(float min, float max) => min + (float)_rng.NextDouble() * (max - min);
+
+        public void RequestPathReset(int seed)
+        {
+            if (isClient) CmdResetPath(seed);
+            else ResetPath(seed);
+        }
+
+        [Command(requiresAuthority = false)]
+        void CmdResetPath(int seed) => ResetPath(seed);
+
+        // ── Network conditions ──────────────────────────────────────────────────
+
+        public void RequestConditions(NetConditions c)
+        {
+            if (isClient) CmdSetConditions(c);
+            else ServerApplyConditions(c);
+        }
+
+        [Command(requiresAuthority = false)]
+        void CmdSetConditions(NetConditions c) => ServerApplyConditions(c);
+
+        void ServerApplyConditions(NetConditions c)
+        {
+            c.latencyMs = Mathf.Clamp(c.latencyMs, 0f, 2000f);
+            c.jitterMs = Mathf.Clamp(c.jitterMs, 0f, 1000f);
+            c.lossPct = Mathf.Clamp(c.lossPct, 0f, 100f);
+            c.scramblePct = Mathf.Clamp(c.scramblePct, 0f, 100f);
+            c.sendRateHz = Mathf.Clamp(c.sendRateHz, 1f, 64f);
+
+            sendRateHz = c.sendRateHz;
+            if (isServer) conditions = c;
+            ApplyToLatencySim(c);
+        }
+
+        void CaptureConditions()
+        {
+            var sim = FindFirstObjectByType<LatencySimulation>();
+            conditions = new NetConditions
+            {
+                latencyMs = sim ? sim.latency : 0f,
+                jitterMs = sim ? sim.jitter * 1000f : 0f,
+                lossPct = sim ? sim.unreliableLoss : 0f,
+                scramblePct = sim ? sim.unreliableScramble : 0f,
+                sendRateHz = sendRateHz
+            };
+        }
+
+        // LatencySimulation delays what its own process *sends*: the host's instance shapes server->client
+        // traffic, clients' instances shape their uplink (so RTT is symmetric).
+        void ApplyToLatencySim(NetConditions c)
+        {
+            var sim = FindFirstObjectByType<LatencySimulation>();
+            if (!sim) return;
+            sim.latency = c.latencyMs;
+            sim.jitter = c.jitterMs / 1000f;
+            sim.unreliableLoss = c.lossPct;
+            sim.unreliableScramble = c.scramblePct;
+        }
+
+        void OnConditionsChanged(NetConditions oldValue, NetConditions newValue)
+        {
+            if (!isServer) ApplyToLatencySim(newValue);
+        }
+
         // Same GameObject first, then anywhere in the scene.
         INetworkTransport FindTransport()
         {
@@ -126,6 +222,7 @@ namespace Network
 
         void OnDestroy()
         {
+            NetDiagnostics.Write($"ServerEntity OnDestroy netId={netId}");
             if (Instance == this) Instance = null;
             if (_sprite != null)
             {
@@ -187,14 +284,14 @@ namespace Network
                     _kickTimer -= Time.deltaTime;
                     if (_kickTimer <= 0f)
                     {
-                        _kickTimer = kickInterval + Random.Range(-1f, 1f);
+                        _kickTimer = kickInterval + Rand(-1f, 1f);
                         Vector3 currentDir = new Vector3(
                             Mathf.Cos(t * speedX) * speedX * timeScale,
                             Mathf.Cos(t * speedY) * speedY * timeScale,
                             0f
                         ).normalized;
-                        bool backMove = allowBackMove && Random.value < 0.5f;
-                        _kickOffset = backMove ? -currentDir * 2.5f : Random.insideUnitCircle * 1.5f;
+                        bool backMove = allowBackMove && _rng.NextDouble() < 0.5;
+                        _kickOffset = backMove ? -currentDir * 2.5f : RandomInCircle() * 1.5f;
                         _kickDecay = 1f;
                     }
 

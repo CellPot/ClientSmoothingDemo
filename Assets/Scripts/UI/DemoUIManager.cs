@@ -8,14 +8,14 @@ namespace UI
 {
     /// <summary>
     /// Renders the demo overlay UI:
-    /// - Left panel: network condition sliders
+    /// - Left panel: network condition sliders, presets, benchmark
     /// - Right panel: per-technique error metrics
     /// - Top: pause / reset / solo controls
     /// </summary>
     public class DemoUIManager : MonoBehaviour
     {
         [Header("References")] public NetworkSimulator networkSim;
-        [Tooltip("Mirror scene: latency/jitter/loss injected on the wrapped transport. Auto-found if empty.")]
+        [Tooltip("Mirror scene: used to detect Mirror mode. Conditions are applied by the server via ServerEntity. Auto-found if empty.")]
         public LatencySimulation mirrorLatency;
         public MirrorNetworkTransport mirrorTransport;
         public List<BaseClientEntity> clients;
@@ -24,9 +24,15 @@ namespace UI
         // UI state
         private bool _paused;
         private HashSet<int> _hidden = new HashSet<int>();
-        private Rect _leftPanel = new Rect(10, 60, 260, 470);
+        private Rect _leftPanel = new Rect(10, 60, 260, 580);
         private Rect _rightPanel;
         private Vector2 _scroll;
+        private Vector2 _resultsScroll;
+        private bool _showResults;
+
+        private NetConditions _cond;
+        private bool _condInit;
+        private BenchmarkRunner _bench;
 
         private GUIStyle _titleStyle;
         private GUIStyle _metricStyle;
@@ -43,6 +49,9 @@ namespace UI
             // If the ServerEntity is prefab-spawned by DemoNetworkManager, pick it up here
             if (server == null)
                 server = ServerEntity.Instance;
+
+            _bench = gameObject.AddComponent<BenchmarkRunner>();
+            _bench.Init(this);
         }
 
         void Update()
@@ -50,6 +59,8 @@ namespace UI
             // Late assign in case server spawned after this component started
             if (server == null && ServerEntity.Instance != null)
                 server = ServerEntity.Instance;
+
+            InitConditions();
 
             _rightPanel = new Rect(Screen.width - 280, 60, 270, clients.Count * 100 + 40);
 
@@ -60,6 +71,28 @@ namespace UI
             // Keyboard shortcut: Space = pause, R = reset metrics
             if (Input.GetKeyDown(KeyCode.Space)) TogglePause();
             if (Input.GetKeyDown(KeyCode.R)) ResetAllMetrics();
+        }
+
+        // Seed the UI state from whatever the scene/server currently uses.
+        void InitConditions()
+        {
+            if (_condInit) return;
+            if (networkSim)
+            {
+                _cond = new NetConditions
+                {
+                    latencyMs = networkSim.baseLatencyMs,
+                    jitterMs = networkSim.jitterMs,
+                    lossPct = networkSim.packetLossRate * 100f,
+                    sendRateHz = server ? server.sendRateHz : networkSim.sendRateHz
+                };
+                _condInit = true;
+            }
+            else if (server)
+            {
+                _cond = server.conditions;
+                _condInit = true;
+            }
         }
 
         void OnGUI()
@@ -77,40 +110,48 @@ namespace UI
             if (GUI.Button(new Rect(Screen.width - 85, 10, 80, 30), "↺ Reset"))
                 ResetAllMetrics();
 
-            // ── Left panel: network sliders ───────────────────────────────────────
+            DrawLeftPanel();
+            DrawRightPanel();
+            if (_showResults) DrawResults();
+        }
+
+        void DrawLeftPanel()
+        {
             GUILayout.BeginArea(_leftPanel, "Network Conditions", GUI.skin.window);
             GUILayout.Space(8);
 
-            if (networkSim)
+            bool controllable = _condInit && (networkSim || server);
+            if (controllable)
             {
-                GUILayout.Label($"Latency: {networkSim.baseLatencyMs:F0} ms");
-                networkSim.baseLatencyMs = GUILayout.HorizontalSlider(networkSim.baseLatencyMs, 0f, 500f);
+                var c = _cond;
 
-                GUILayout.Label($"Jitter: ±{networkSim.jitterMs:F0} ms");
-                networkSim.jitterMs = GUILayout.HorizontalSlider(networkSim.jitterMs, 0f, 200f);
+                GUILayout.Label($"Latency: {c.latencyMs:F0} ms");
+                c.latencyMs = GUILayout.HorizontalSlider(c.latencyMs, 0f, 500f);
 
-                GUILayout.Label($"Packet Loss: {networkSim.packetLossRate * 100:F0}%");
-                networkSim.packetLossRate = GUILayout.HorizontalSlider(networkSim.packetLossRate, 0f, 0.5f);
+                GUILayout.Label($"Jitter: {(networkSim ? "±" : "up to +")}{c.jitterMs:F0} ms");
+                c.jitterMs = GUILayout.HorizontalSlider(c.jitterMs, 0f, 200f);
 
-                GUILayout.Label($"Send Rate: {networkSim.sendRateHz:F0} Hz");
-                networkSim.sendRateHz = GUILayout.HorizontalSlider(networkSim.sendRateHz, 1f, 64f);
+                GUILayout.Label($"Packet Loss: {c.lossPct:F0}%");
+                c.lossPct = GUILayout.HorizontalSlider(c.lossPct, 0f, 50f);
+
+                if (!networkSim)
+                {
+                    GUILayout.Label($"Reorder: {c.scramblePct:F0}%");
+                    c.scramblePct = GUILayout.HorizontalSlider(c.scramblePct, 0f, 50f);
+                }
+
+                GUILayout.Label($"Send Rate: {c.sendRateHz:F0} Hz");
+                c.sendRateHz = GUILayout.HorizontalSlider(c.sendRateHz, 1f, 64f);
+
+                if (!c.Equals(_cond)) ApplyConditions(c);
+            }
+            else
+            {
+                GUILayout.Label("Waiting for server...");
             }
 
-            if (mirrorLatency)
-            {
-                GUILayout.Label($"Latency: {mirrorLatency.latency:F0} ms");
-                mirrorLatency.latency = GUILayout.HorizontalSlider(mirrorLatency.latency, 0f, 500f);
-
-                // LatencySimulation jitter is a perlin spike in seconds (0..jitter)
-                GUILayout.Label($"Jitter: up to +{mirrorLatency.jitter * 1000:F0} ms");
-                mirrorLatency.jitter = GUILayout.HorizontalSlider(mirrorLatency.jitter, 0f, 0.2f);
-
-                GUILayout.Label($"Packet Loss: {mirrorLatency.unreliableLoss:F0}%");
-                mirrorLatency.unreliableLoss = GUILayout.HorizontalSlider(mirrorLatency.unreliableLoss, 0f, 50f);
-
-                GUILayout.Label($"Reorder: {mirrorLatency.unreliableScramble:F0}%");
-                mirrorLatency.unreliableScramble = GUILayout.HorizontalSlider(mirrorLatency.unreliableScramble, 0f, 50f);
-            }
+            if (!networkSim)
+                GUILayout.Label(MirrorStatus());
 
             if (mirrorTransport)
             {
@@ -124,36 +165,30 @@ namespace UI
 
             if (server)
             {
-                if (mirrorLatency)
-                {
-                    GUILayout.Label($"Send Rate: {server.sendRateHz:F0} Hz");
-                    server.sendRateHz = GUILayout.HorizontalSlider(server.sendRateHz, 1f, 64f);
-                }
-
                 GUILayout.Label($"Server Speed: {server.timeScale:F2}x");
                 server.timeScale = GUILayout.HorizontalSlider(server.timeScale, 0.1f, 5f);
 
                 server.allowBackMove = GUILayout.Toggle(server.allowBackMove, " Allow Back-Move");
                 server.playerControlled = GUILayout.Toggle(server.playerControlled, " Player Controlled (WASD)");
             }
-            else
-            {
-                GUILayout.Label("Server: (spawning...)");
-            }
-            if (networkSim || mirrorLatency)
+
+            if (controllable)
             {
                 GUILayout.Space(8);
                 GUILayout.Label("── Presets ──", _headerStyle);
-                GUILayout.BeginHorizontal();
-                if (GUILayout.Button("Perfect")) ApplyPreset(0, 0, 0, 20);
-                if (GUILayout.Button("LAN")) ApplyPreset(10, 5, 0, 20);
-                if (GUILayout.Button("Broadband")) ApplyPreset(80, 20, 0.02f, 20);
-                GUILayout.EndHorizontal();
-                GUILayout.BeginHorizontal();
-                if (GUILayout.Button("Mobile")) ApplyPreset(150, 60, 0.05f, 10);
-                if (GUILayout.Button("Lossy")) ApplyPreset(200, 100, 0.15f, 10);
-                if (GUILayout.Button("Chaos")) ApplyPreset(300, 150, 0.25f, 5);
-                GUILayout.EndHorizontal();
+                var presets = NetPresets.All;
+                for (int i = 0; i < presets.Length; i += 3)
+                {
+                    GUILayout.BeginHorizontal();
+                    for (int j = i; j < i + 3 && j < presets.Length; j++)
+                        if (GUILayout.Button(presets[j].name))
+                        {
+                            ApplyConditions(presets[j].conditions);
+                            ResetAllMetrics();
+                        }
+
+                    GUILayout.EndHorizontal();
+                }
 
                 if (networkSim)
                 {
@@ -161,11 +196,31 @@ namespace UI
                     GUILayout.Label(
                         $"Packets sent: {networkSim.packetsSentTotal}  Dropped: {networkSim.packetsDroppedTotal}");
                 }
+
+                GUILayout.Space(8);
+                GUILayout.Label("── Benchmark ──", _headerStyle);
+                if (!networkSim && NetworkServer.active && NetworkClient.active)
+                    GUILayout.Label("Host mode: the local client bypasses latency/loss. Run from the ParrelSync client.");
+                if (_bench.Running)
+                {
+                    GUILayout.Label(_bench.Status);
+                    if (GUILayout.Button("Cancel")) _bench.Cancel();
+                }
+                else
+                {
+                    if (GUILayout.Button($"▶ Run ({NetPresets.All.Length} × {BenchmarkRunner.Duration:F0}s)"))
+                        _bench.Begin();
+                    if (!string.IsNullOrEmpty(_bench.Status)) GUILayout.Label(_bench.Status);
+                    if (_bench.Results.Count > 0 && GUILayout.Button("Show results"))
+                        _showResults = true;
+                }
             }
 
             GUILayout.EndArea();
+        }
 
-            // ── Right panel: per-technique metrics ────────────────────────────────
+        void DrawRightPanel()
+        {
             GUILayout.BeginArea(_rightPanel, "Technique Metrics", GUI.skin.window);
             GUILayout.Space(4);
             _scroll = GUILayout.BeginScrollView(_scroll);
@@ -200,27 +255,95 @@ namespace UI
             GUILayout.EndArea();
         }
 
+        void DrawResults()
+        {
+            var rect = new Rect(290, 70, Screen.width - 290 - 290, Screen.height - 90);
+            GUILayout.BeginArea(rect, "Benchmark results (error in world units)", GUI.skin.window);
+            GUILayout.Space(6);
+            if (!string.IsNullOrEmpty(_bench.LastFile))
+                GUILayout.Label("Saved: " + _bench.LastFile);
+
+            _resultsScroll = GUILayout.BeginScrollView(_resultsScroll);
+            foreach (var r in _bench.Results)
+            {
+                var c = r.preset.conditions;
+                GUILayout.Label(
+                    $"{r.preset.name}   {c.latencyMs:F0}ms  ±{c.jitterMs:F0}  loss {c.lossPct:F0}%  rx {r.rxHz:F1} Hz",
+                    _headerStyle);
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Technique", GUILayout.Width(220));
+                GUILayout.Label("Mean", GUILayout.Width(60));
+                GUILayout.Label("P95", GUILayout.Width(60));
+                GUILayout.Label("Max", GUILayout.Width(60));
+                GUILayout.Label("Delay", GUILayout.Width(60));
+                GUILayout.EndHorizontal();
+                foreach (var row in r.rows)
+                {
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label(row.technique, GUILayout.Width(220));
+                    GUILayout.Label($"{row.mean:F3}", GUILayout.Width(60));
+                    GUILayout.Label($"{row.p95:F3}", GUILayout.Width(60));
+                    GUILayout.Label($"{row.max:F3}", GUILayout.Width(60));
+                    GUILayout.Label($"{row.delayMs:F0}ms", GUILayout.Width(60));
+                    GUILayout.EndHorizontal();
+                }
+
+                GUILayout.Space(8);
+            }
+
+            GUILayout.EndScrollView();
+            if (GUILayout.Button("Close")) _showResults = false;
+            GUILayout.EndArea();
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────────────
 
-        void ApplyPreset(float lat, float jitter, float loss, float rate)
+        // Diagnostic: which role this process plays and what Mirror has spawned/readied.
+        static string MirrorStatus()
         {
+            string role = NetworkServer.active && NetworkClient.active ? "Host"
+                : NetworkServer.active ? "Server only"
+                : NetworkClient.active ? "Client"
+                : "Offline";
+            string s = $"[{role}]";
+            if (NetworkServer.active)
+            {
+                int ready = 0;
+                foreach (var conn in NetworkServer.connections.Values)
+                    if (conn.isReady) ready++;
+                s += $" conns={NetworkServer.connections.Count} ready={ready} spawned={NetworkServer.spawned.Count}";
+            }
+
+            if (NetworkClient.active && !NetworkServer.active)
+                s += $" connected={NetworkClient.isConnected} ready={NetworkClient.ready} spawned={NetworkClient.spawned.Count}";
+            return s;
+        }
+
+        public NetConditions GetConditions() => _cond;
+
+        /// <summary>Applies conditions locally (simulator) or asks the server to apply them (Mirror).</summary>
+        public void ApplyConditions(NetConditions c)
+        {
+            _cond = c;
             if (networkSim)
             {
-                networkSim.baseLatencyMs = lat;
-                networkSim.jitterMs = jitter;
-                networkSim.packetLossRate = loss;
-                networkSim.sendRateHz = rate;
+                networkSim.baseLatencyMs = c.latencyMs;
+                networkSim.jitterMs = c.jitterMs;
+                networkSim.packetLossRate = c.lossPct / 100f;
+                networkSim.sendRateHz = c.sendRateHz;
+                if (server) server.sendRateHz = c.sendRateHz;
             }
-            else if (mirrorLatency)
+            else if (server)
             {
-                mirrorLatency.latency = lat;
-                mirrorLatency.jitter = jitter / 1000f;
-                mirrorLatency.unreliableLoss = loss * 100f;
-                if (server) server.sendRateHz = rate;
+                server.RequestConditions(c);
             }
-            else return;
+        }
 
-            ResetAllMetrics();
+        /// <summary>Show every technique and unpause, so a benchmark samples all of them.</summary>
+        public void PrepareBenchmark()
+        {
+            _hidden.Clear();
+            if (_paused) TogglePause();
         }
 
         void TogglePause()
@@ -231,9 +354,8 @@ namespace UI
 
         void ResetAllMetrics()
         {
-            if (!networkSim) return;
-
             foreach (var c in clients) c.ResetMetrics();
+            if (!networkSim) return;
             networkSim.packetsSentTotal = 0;
             networkSim.packetsDroppedTotal = 0;
         }

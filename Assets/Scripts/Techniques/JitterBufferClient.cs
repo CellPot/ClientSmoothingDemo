@@ -15,6 +15,7 @@ namespace Techniques
         [Header("Settings")]
         [Tooltip("Target buffer depth in seconds. Must be > max expected jitter.")]
         [Range(0.05f, 0.5f)] public float bufferDepth = 0.12f;
+        public override float AddedDelaySeconds => bufferDepth;
 
         [Tooltip("How aggressively the playback clock corrects drift.")]
         [Range(0.001f, 0.05f)] public float clockAdjustRate = 0.01f;

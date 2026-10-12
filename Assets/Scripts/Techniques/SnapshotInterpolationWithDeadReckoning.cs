@@ -7,6 +7,7 @@ namespace Techniques
     public class SnapshotInterpolationWithDeadReckoning : BaseClientEntity
     {
         [Range(0.05f, 0.5f)] public float bufferDelay = 0.15f;
+        public override float AddedDelaySeconds => bufferDelay;
         [Range(0.1f, 1f)] public float maxReckoningTime = 0.4f;
 
         private List<NetworkSimulator.Snapshot> _buffer = new List<NetworkSimulator.Snapshot>();

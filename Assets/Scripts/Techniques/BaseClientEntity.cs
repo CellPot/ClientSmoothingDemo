@@ -29,6 +29,11 @@ namespace Techniques
         private int _errorSamples;
         private Sprite _sprite;
 
+        [HideInInspector] public int snapshotsReceived;
+
+        /// <summary>Intentional delay the technique adds (buffer depth), for benchmark reports.</summary>
+        public virtual float AddedDelaySeconds => 0f;
+
         protected NetworkSimulator.Snapshot latestSnapshot;
         protected bool hasSnapshot;
 
@@ -110,6 +115,7 @@ namespace Techniques
 
         private void OnSnapshotReceived(NetworkSimulator.Snapshot snap)
         {
+            snapshotsReceived++;
             latestSnapshot = snap;
             hasSnapshot = true;
             OnSnapshot(snap);

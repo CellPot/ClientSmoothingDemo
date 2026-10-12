@@ -16,6 +16,7 @@ namespace Techniques
         [Tooltip("How far behind real-time (seconds) to render. Must be > one snapshot interval.")]
         [Range(0.05f, 0.5f)]
         public float bufferDelay = 0.15f;
+        public override float AddedDelaySeconds => bufferDelay;
 
         private List<NetworkSimulator.Snapshot> _buffer = new List<NetworkSimulator.Snapshot>();
 

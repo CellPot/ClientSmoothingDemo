@@ -15,6 +15,7 @@ namespace Techniques
     {
         [Header("Jitter Buffer")] [Range(0.05f, 0.5f)]
         public float bufferDepth = 0.12f;
+        public override float AddedDelaySeconds => bufferDepth;
 
         [Range(0.001f, 0.05f)] public float clockAdjustRate = 0.01f;
 
