@@ -2,6 +2,8 @@
 
 A Unity demo that compares client-side network smoothing techniques against one authoritative moving entity, and measures how well each one holds up under different network conditions.
 
+![Demo: eleven smoothing techniques following the server entity while the network preset changes](docs/demo.gif)
+
 **Unity 6000.3** · Networking by [Mirror](https://github.com/MirrorNetworking/Mirror) (included under `Assets/Mirror`)
 
 - [Techniques](#techniques)
@@ -99,3 +101,20 @@ Results appear in a window (sorted by score) and are saved as CSV to `<persisten
 
 - Keep old CSVs; they are the regression record. Only compare runs made with the same code version.
 - Run-to-run noise on identical code is roughly 0.03-0.1 in score, so compare techniques relative to each other within a run rather than across runs.
+
+### Sample results
+
+MirrorNetwork, remote client over KCP, seed 12345. Overall is the mean score over all six presets. Lower is better.
+
+| Preset | 1st | 2nd | 3rd |
+|---|---|---|---|
+| Perfect | Kalman + ES (0.15) | Snapshot Interp + DR (0.17) | Dead Reckoning (0.22) |
+| LAN | Kalman + ES (0.16) | Snapshot Interp + DR (0.18) | Dead Reckoning (0.20) |
+| Broadband | Kalman + ES (0.17) | Snapshot Interp + DR (0.23) | Dead Reckoning (0.29) |
+| Mobile | Kalman + ES (0.38) | Snapshot Interp + DR (0.68) | Dead Reckoning (0.70) |
+| Lossy | Kalman + ES (0.40) | Snapshot Interp + DR (0.68) | Dead Reckoning (0.71) |
+| Chaos | Kalman + ES (1.21) | Dead Reckoning (1.33) | Snapshot Interp + DR (1.45) |
+
+Overall: Kalman + ES 0.41, Snapshot Interp + DR 0.57, Dead Reckoning 0.58, Reconciliation 0.74, Kalman 0.77, Exponential Smoothing 0.96, Snapshot Interpolation 1.01, Client-Side Interpolation 1.08, Jitter Buffer + DR 1.22, Jitter Buffer 1.25, Naive 1.48.
+
+Snapshot interpolation has the lowest adjusted error on clean links (about 0.004), but it stutters on lossy ones (100+ stutters per 20 s on Lossy and Chaos). Dead reckoning is the smoothest, at the price of a visible chase lag.
