@@ -8,8 +8,13 @@ namespace Network
     /// Emulates network conditions: latency, jitter, and packet loss.
     /// Delivers "server snapshots" to registered listeners with simulated delay.
     /// </summary>
-    public class NetworkSimulator : MonoBehaviour, INetworkTransport
+    public class NetworkSimulator : MonoBehaviour, INetworkTransport, ITruthSender, IReferenceSource
     {
+        [Tooltip("Measure error against the server's true path delayed by the minimum one-way latency (same reference as the Mirror scene) instead of the live server transform.")]
+        public bool latencyAdjustedReference = true;
+
+        private readonly TruthHistory _truth = new TruthHistory();
+
         [Header("Network Conditions")] [Range(0f, 500f)]
         public float baseLatencyMs = 100f;
 
@@ -70,11 +75,32 @@ namespace Network
             float delay = Mathf.Max(0f, (baseLatencyMs + jitter) / 1000f);
             lastMeasuredLatency = delay * 1000f;
 
+            // Rebase onto the "client clock" like MirrorNetworkTransport does (timestamp + minimum one-way latency),
+            // so buffered techniques and the truth reference share one timeline.
+            snapshot.timestamp += MinDelaySeconds;
+
             _pending.Add(new PendingPacket
             {
                 snapshot = snapshot,
                 deliverAt = Time.time + delay
             });
+        }
+
+        // The Mirror client rebases server time with the least-delayed packet's offset, so its reference is the
+        // server path shifted by the minimum one-way latency. Do the same here to keep both scenes comparable.
+        public void SendTruth(float timestamp, Vector3 position)
+        {
+            _truth.Add(timestamp + MinDelaySeconds, position);
+        }
+
+        private float MinDelaySeconds => Mathf.Max(0f, baseLatencyMs - jitterMs) / 1000f;
+
+        public float TruthAge(float localTime) => _truth.Age(localTime);
+
+        public bool TryGetTruth(float localTime, out Vector3 position)
+        {
+            position = default;
+            return latencyAdjustedReference && _truth.TryGet(localTime, out position);
         }
 
         void Update()

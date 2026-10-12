@@ -175,12 +175,15 @@ namespace UI
             if (!networkSim)
                 GUILayout.Label(MirrorStatus());
 
-            if (mirrorTransport)
+            bool hasRef = networkSim || mirrorTransport;
+            if (hasRef)
             {
-                bool adjusted = GUILayout.Toggle(mirrorTransport.latencyAdjustedReference, " Error vs. true path (not live transform)");
-                if (adjusted != mirrorTransport.latencyAdjustedReference)
+                bool current = networkSim ? networkSim.latencyAdjustedReference : mirrorTransport.latencyAdjustedReference;
+                bool adjusted = GUILayout.Toggle(current, " Error vs. true path (not live transform)");
+                if (adjusted != current)
                 {
-                    mirrorTransport.latencyAdjustedReference = adjusted;
+                    if (networkSim) networkSim.latencyAdjustedReference = adjusted;
+                    else mirrorTransport.latencyAdjustedReference = adjusted;
                     ResetAllMetrics();
                 }
             }
