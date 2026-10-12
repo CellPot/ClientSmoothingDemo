@@ -56,6 +56,10 @@ namespace Network
         private float _kickTimer;
         private Vector3 _kickOffset;
         private float _kickDecay;
+        private Vector3 _kickFrom, _kickEffective;
+        private float _kickRamp = 1f;
+        // A kick is a sharp shove, not a teleport: it ramps in over this long so TrueVelocity stays finite.
+        private const float KickRampSeconds = 0.15f;
         private float _pathTime;
         private bool _hasPrev;
         private System.Random _rng;
@@ -149,7 +153,10 @@ namespace Network
             _kickTimer = 0f;
             _kickOffset = Vector3.zero;
             _kickDecay = 0f;
+            _kickFrom = _kickEffective = Vector3.zero;
+            _kickRamp = 1f;
             _hasPrev = false;
+            NetDiagnostics.Write($"[server] ResetPath seed={seed} pos={transform.position}");
         }
 
         Vector3 RandomInCircle()
@@ -309,10 +316,15 @@ namespace Network
                         bool backMove = allowBackMove && _rng.NextDouble() < 0.5;
                         _kickOffset = backMove ? -currentDir * 2.5f : RandomInCircle() * 1.5f;
                         _kickDecay = 1f;
+                        _kickFrom = _kickEffective;
+                        _kickRamp = 0f;
+                        NetDiagnostics.Write($"[server] kick jump={(_kickOffset - _kickFrom).magnitude:F2} pathTime={_pathTime:F2}");
                     }
 
                     _kickDecay = Mathf.MoveTowards(_kickDecay, 0f, Time.deltaTime * 1.5f);
-                    basePos += _kickOffset * _kickDecay;
+                    _kickRamp = Mathf.MoveTowards(_kickRamp, 1f, Time.deltaTime / KickRampSeconds);
+                    _kickEffective = Vector3.Lerp(_kickFrom, _kickOffset * _kickDecay, _kickRamp);
+                    basePos += _kickEffective;
                 }
             }
 

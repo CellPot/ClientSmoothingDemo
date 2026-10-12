@@ -34,6 +34,8 @@ namespace Network
 
         private const float TruthHistorySeconds = 3f;
         private const float MaxExtrapolation = 0.1f;
+        // Faster than anything the demo path does legitimately: a segment this fast spans a teleport, so don't extrapolate along it.
+        private const float MaxPlausibleSpeed = 40f;
         private readonly List<(float t, Vector3 p)> _truth = new List<(float, Vector3)>();
 
         private readonly List<Action<NetworkSimulator.Snapshot>> _listeners = new List<Action<NetworkSimulator.Snapshot>>();
@@ -48,6 +50,8 @@ namespace Network
         private float _windowMin;
         private int _windowCount;
         private bool _hasOffset;
+        private float _lastTruthArrival;
+        private float _loggedOffset;
 
         // Unreliable delivery can reorder/duplicate; drop stale snapshots (but accept a big
         // backwards jump as a new server session).
@@ -106,6 +110,8 @@ namespace Network
             NetworkServer.SendToAll(new TruthMessage { timestamp = timestamp, position = position }, Channels.Unreliable);
         }
 
+        public float TruthAge(float localTime) => _truth.Count == 0 ? float.NaN : localTime - _truth[_truth.Count - 1].t;
+
         public bool TryGetTruth(float localTime, out Vector3 position)
         {
             position = default;
@@ -119,6 +125,7 @@ namespace Network
                 var prev = _truth[n - 2];
                 float span = last.t - prev.t;
                 Vector3 vel = span > 0f ? (last.p - prev.p) / span : Vector3.zero;
+                if (vel.sqrMagnitude > MaxPlausibleSpeed * MaxPlausibleSpeed) vel = Vector3.zero;
                 position = last.p + vel * Mathf.Min(localTime - last.t, MaxExtrapolation);
                 return true;
             }
@@ -163,6 +170,11 @@ namespace Network
         {
             if (!_hasOffset) return; // clock offset comes from the first snapshot
 
+            float now = Time.unscaledTime;
+            if (_lastTruthArrival > 0f && now - _lastTruthArrival > 0.15f)
+                NetDiagnostics.Write($"[truth] gap {(now - _lastTruthArrival) * 1000f:F0}ms between truth packets");
+            _lastTruthArrival = now;
+
             float t = msg.timestamp + _offset;
             int i = _truth.Count;
             while (i > 0 && _truth[i - 1].t > t) i--; // keep sorted despite reordering
@@ -203,6 +215,12 @@ namespace Network
                 {
                     _offset = Mathf.Min(_offset, sample);
                 }
+            }
+
+            if (Mathf.Abs(_offset - _loggedOffset) > 0.03f)
+            {
+                NetDiagnostics.Write($"[offset] clock offset {_loggedOffset * 1000f:F0}ms -> {_offset * 1000f:F0}ms");
+                _loggedOffset = _offset;
             }
 
             var snap = new NetworkSimulator.Snapshot
