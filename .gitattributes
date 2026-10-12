@@ -1,0 +1,14 @@
+* text=auto
+
+# Unity YAML/meta must stay LF
+*.unity text eol=lf
+*.prefab text eol=lf
+*.asset text eol=lf
+*.mat text eol=lf
+*.meta text eol=lf
+*.anim text eol=lf
+*.controller text eol=lf
+
+*.cs text diff=csharp
+*.png binary
+*.dll binary
