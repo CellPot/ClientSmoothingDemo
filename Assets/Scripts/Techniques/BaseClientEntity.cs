@@ -26,35 +26,66 @@ namespace Techniques
 
         private float _errorAccum;
         private int _errorSamples;
+        private Sprite _sprite;
 
         protected NetworkSimulator.Snapshot latestSnapshot;
         protected bool hasSnapshot;
 
         protected virtual void OnEnable()
         {
-            _transport?.RegisterListener(OnSnapshotReceived);
+            if (_transport != null) _transport.RegisterListener(OnSnapshotReceived);
+            // Late-spawned server support (Mirror prefab spawn):
+            if (server == null)
+            {
+                if (Network.ServerEntity.Instance != null)
+                {
+                    server = Network.ServerEntity.Instance;
+                }
+                else
+                {
+                    Network.ServerEntity.OnSpawned += HandleServerSpawned;
+                }
+            }
         }
 
         protected virtual void OnDisable()
         {
-            _transport?.UnregisterListener(OnSnapshotReceived);
+            if (_transport != null) _transport.UnregisterListener(OnSnapshotReceived);
+            Network.ServerEntity.OnSpawned -= HandleServerSpawned;
         }
 
         protected virtual void Awake()
         {
             _transport = transportBehaviour as INetworkTransport;
-
             if (_transport == null)
                 Debug.LogError($"[{name}] transportBehaviour does not implement INetworkTransport.", this);
 
 
             var go = this.gameObject;
             var sr = go.AddComponent<SpriteRenderer>();
-            sr.sprite = CreateCircleSprite(color);
+            _sprite = CreateCircleSprite(color);
+            sr.sprite = _sprite;
             sr.sortingOrder = 5;
             go.transform.localScale = Vector3.one * 0.3f;
 
             go.AddComponent<TechniqueTrail>();
+        }
+
+        protected virtual void OnDestroy()
+        {
+            if (_sprite == null) return;
+            Destroy(_sprite.texture);
+            Destroy(_sprite);
+        }
+
+        private void HandleServerSpawned(Network.ServerEntity srv)
+        {
+            if (server == null)
+            {
+                server = srv;
+                // once assigned, no need to keep listening
+                Network.ServerEntity.OnSpawned -= HandleServerSpawned;
+            }
         }
 
         static Sprite CreateCircleSprite(Color color)
@@ -97,7 +128,8 @@ namespace Techniques
         private void TrackError()
         {
             if (server == null) return;
-            currentError = Vector3.Distance(transform.position, server.TruePosition);
+            // Compare against the authoritative server transform (works in both simulator and Mirror scenes)
+            currentError = Vector3.Distance(transform.position, server.transform.position);
             _errorAccum += currentError;
             _errorSamples++;
             averageError = _errorAccum / _errorSamples;

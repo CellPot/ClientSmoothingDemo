@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Mirror;
 using Network;
 using Techniques;
 using UnityEngine;
@@ -14,6 +15,8 @@ namespace UI
     public class DemoUIManager : MonoBehaviour
     {
         [Header("References")] public NetworkSimulator networkSim;
+        [Tooltip("Mirror scene: latency/jitter/loss injected on the wrapped transport. Auto-found if empty.")]
+        public LatencySimulation mirrorLatency;
         public List<BaseClientEntity> clients;
         public ServerEntity server;
 
@@ -32,10 +35,19 @@ namespace UI
         void Start()
         {
             _rightPanel = new Rect(Screen.width - 280, 60, 270, clients.Count * 100 + 30);
+            if (networkSim == null && mirrorLatency == null)
+                mirrorLatency = FindFirstObjectByType<LatencySimulation>();
+            // If the ServerEntity is prefab-spawned by DemoNetworkManager, pick it up here
+            if (server == null)
+                server = ServerEntity.Instance;
         }
 
         void Update()
         {
+            // Late assign in case server spawned after this component started
+            if (server == null && ServerEntity.Instance != null)
+                server = ServerEntity.Instance;
+
             _rightPanel = new Rect(Screen.width - 280, 60, 270, clients.Count * 100 + 40);
 
             // Apply solo visibility
@@ -81,12 +93,41 @@ namespace UI
                 networkSim.sendRateHz = GUILayout.HorizontalSlider(networkSim.sendRateHz, 1f, 64f);
             }
 
-            GUILayout.Label($"Server Speed: {server.timeScale:F2}x");
-            server.timeScale = GUILayout.HorizontalSlider(server.timeScale, 0.1f, 5f);
+            if (mirrorLatency)
+            {
+                GUILayout.Label($"Latency: {mirrorLatency.latency:F0} ms");
+                mirrorLatency.latency = GUILayout.HorizontalSlider(mirrorLatency.latency, 0f, 500f);
 
-            server.allowBackMove = GUILayout.Toggle(server.allowBackMove, " Allow Back-Move");
-            server.playerControlled = GUILayout.Toggle(server.playerControlled, " Player Controlled (WASD)");
-            if (networkSim)
+                // LatencySimulation jitter is a perlin spike in seconds (0..jitter)
+                GUILayout.Label($"Jitter: up to +{mirrorLatency.jitter * 1000:F0} ms");
+                mirrorLatency.jitter = GUILayout.HorizontalSlider(mirrorLatency.jitter, 0f, 0.2f);
+
+                GUILayout.Label($"Packet Loss: {mirrorLatency.unreliableLoss:F0}%");
+                mirrorLatency.unreliableLoss = GUILayout.HorizontalSlider(mirrorLatency.unreliableLoss, 0f, 50f);
+
+                GUILayout.Label($"Reorder: {mirrorLatency.unreliableScramble:F0}%");
+                mirrorLatency.unreliableScramble = GUILayout.HorizontalSlider(mirrorLatency.unreliableScramble, 0f, 50f);
+            }
+
+            if (server)
+            {
+                if (mirrorLatency)
+                {
+                    GUILayout.Label($"Send Rate: {server.sendRateHz:F0} Hz");
+                    server.sendRateHz = GUILayout.HorizontalSlider(server.sendRateHz, 1f, 64f);
+                }
+
+                GUILayout.Label($"Server Speed: {server.timeScale:F2}x");
+                server.timeScale = GUILayout.HorizontalSlider(server.timeScale, 0.1f, 5f);
+
+                server.allowBackMove = GUILayout.Toggle(server.allowBackMove, " Allow Back-Move");
+                server.playerControlled = GUILayout.Toggle(server.playerControlled, " Player Controlled (WASD)");
+            }
+            else
+            {
+                GUILayout.Label("Server: (spawning...)");
+            }
+            if (networkSim || mirrorLatency)
             {
                 GUILayout.Space(8);
                 GUILayout.Label("── Presets ──", _headerStyle);
@@ -101,9 +142,12 @@ namespace UI
                 if (GUILayout.Button("Chaos")) ApplyPreset(300, 150, 0.25f, 5);
                 GUILayout.EndHorizontal();
 
-                GUILayout.Space(6);
-                GUILayout.Label(
-                    $"Packets sent: {networkSim.packetsSentTotal}  Dropped: {networkSim.packetsDroppedTotal}");
+                if (networkSim)
+                {
+                    GUILayout.Space(6);
+                    GUILayout.Label(
+                        $"Packets sent: {networkSim.packetsSentTotal}  Dropped: {networkSim.packetsDroppedTotal}");
+                }
             }
 
             GUILayout.EndArea();
@@ -147,12 +191,22 @@ namespace UI
 
         void ApplyPreset(float lat, float jitter, float loss, float rate)
         {
-            if (!networkSim) return;
-            
-            networkSim.baseLatencyMs = lat;
-            networkSim.jitterMs = jitter;
-            networkSim.packetLossRate = loss;
-            networkSim.sendRateHz = rate;
+            if (networkSim)
+            {
+                networkSim.baseLatencyMs = lat;
+                networkSim.jitterMs = jitter;
+                networkSim.packetLossRate = loss;
+                networkSim.sendRateHz = rate;
+            }
+            else if (mirrorLatency)
+            {
+                mirrorLatency.latency = lat;
+                mirrorLatency.jitter = jitter / 1000f;
+                mirrorLatency.unreliableLoss = loss * 100f;
+                if (server) server.sendRateHz = rate;
+            }
+            else return;
+
             ResetAllMetrics();
         }
 

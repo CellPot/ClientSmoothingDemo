@@ -25,6 +25,21 @@ namespace Network
         private readonly List<Action<NetworkSimulator.Snapshot>> _listeners = new List<Action<NetworkSimulator.Snapshot>>();
         private bool _clientHandlerRegistered;
 
+        // Clock alignment: server timestamps use the server's Time.time, which differs per process
+        // (e.g. ParrelSync clone). We estimate offset = localArrival - serverTimestamp as the minimum
+        // over a rolling window (the min sample ~ the least-delayed packet), then rebase timestamps
+        // onto the local clock so techniques can keep comparing them against Time.time.
+        private const int OffsetWindow = 100;
+        private float _offset;
+        private float _windowMin;
+        private int _windowCount;
+        private bool _hasOffset;
+
+        // Unreliable delivery can reorder/duplicate; drop stale snapshots (but accept a big
+        // backwards jump as a new server session).
+        private float _lastRawTimestamp;
+        private bool _hasLast;
+
         void OnEnable()
         {
             RegisterClientHandler();
@@ -66,8 +81,9 @@ namespace Network
                 velocity = snapshot.velocity
             };
 
-            // Broadcast to all ready connections
-            NetworkServer.SendToAll(msg);
+            // Broadcast to all ready connections. Unreliable: retransmits would add head-of-line
+            // blocking and hide the loss/jitter the smoothing techniques are meant to handle.
+            NetworkServer.SendToAll(msg, Channels.Unreliable);
         }
 
         // Register client-side handler once
@@ -88,13 +104,43 @@ namespace Network
 
             NetworkClient.UnregisterHandler<SnapshotMessage>();
             _clientHandlerRegistered = false;
+            _hasOffset = false;
+            _hasLast = false;
         }
 
         void OnSnapshotMessage(SnapshotMessage msg)
         {
+            if (_hasLast && msg.timestamp <= _lastRawTimestamp && _lastRawTimestamp - msg.timestamp < 1f)
+                return;
+            _lastRawTimestamp = msg.timestamp;
+            _hasLast = true;
+
+            float sample = Time.time - msg.timestamp;
+            if (!_hasOffset || sample < _windowMin - 1f)
+            {
+                // First packet or a new server session: hard reset.
+                _offset = _windowMin = sample;
+                _windowCount = 0;
+                _hasOffset = true;
+            }
+            else
+            {
+                _windowMin = Mathf.Min(_windowMin, sample);
+                if (++_windowCount >= OffsetWindow)
+                {
+                    _offset = _windowMin;
+                    _windowMin = sample;
+                    _windowCount = 0;
+                }
+                else
+                {
+                    _offset = Mathf.Min(_offset, sample);
+                }
+            }
+
             var snap = new NetworkSimulator.Snapshot
             {
-                timestamp = msg.timestamp,
+                timestamp = msg.timestamp + _offset,
                 position = msg.position,
                 velocity = msg.velocity
             };
