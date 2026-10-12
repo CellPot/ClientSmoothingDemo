@@ -14,9 +14,16 @@ namespace UI
     /// </summary>
     public class DemoUIManager : MonoBehaviour
     {
+        public enum DemoMode
+        {
+            Simulator, // single process, no Mirror networking
+            Offline,   // Mirror scene, nothing started yet
+            Server,    // dedicated server: no client, so no snapshots arrive
+            Host,      // server + local client (local connection bypasses latency/loss)
+            Client     // remote client: conditions and path are owned by the server
+        }
+
         [Header("References")] public NetworkSimulator networkSim;
-        [Tooltip("Mirror scene: used to detect Mirror mode. Conditions are applied by the server via ServerEntity. Auto-found if empty.")]
-        public LatencySimulation mirrorLatency;
         public MirrorNetworkTransport mirrorTransport;
         public List<BaseClientEntity> clients;
         public ServerEntity server;
@@ -43,8 +50,14 @@ namespace UI
         private bool _condInit;
         private BenchmarkRunner _bench;
 
+        // Mirror: follow condition changes made elsewhere (other peer, benchmark) and send our own edits throttled.
+        private ServerEntity _condServer;
+        private NetConditions _lastServerCond;
+        private bool _condPending;
+        private float _lastCondSend;
+        private const float CondSendInterval = 0.1f;
+
         private GUIStyle _titleStyle;
-        private GUIStyle _metricStyle;
         private GUIStyle _headerStyle;
         private bool _stylesInit;
 
@@ -52,6 +65,19 @@ namespace UI
         // Mirror's scene post-processing force-disables such objects until a NetworkServer spawns them, and it can
         // do so after our Awake. There is no network here, so keep switching it on for the first frames.
         private int _simGuardFrames = 120;
+
+        public DemoMode Mode
+        {
+            get
+            {
+                if (networkSim != null) return DemoMode.Simulator;
+                if (NetworkServer.active) return NetworkClient.active ? DemoMode.Host : DemoMode.Server;
+                return NetworkClient.active ? DemoMode.Client : DemoMode.Offline;
+            }
+        }
+
+        // Server-side values (speed, movement flags) are only authoritative where the server runs.
+        bool OwnsServer => Mode == DemoMode.Simulator || Mode == DemoMode.Server || Mode == DemoMode.Host;
 
         void Awake() => EnsureSimulatorServerActive();
 
@@ -65,10 +91,7 @@ namespace UI
 
         void Start()
         {
-            _rightPanel = new Rect(Screen.width - 280, 60, 270, clients.Count * 100 + 30);
             EnsureSimulatorServerActive();
-            if (networkSim == null && mirrorLatency == null)
-                mirrorLatency = FindFirstObjectByType<LatencySimulation>();
             if (mirrorTransport == null)
                 mirrorTransport = FindFirstObjectByType<MirrorNetworkTransport>();
             // If the ServerEntity is prefab-spawned by DemoNetworkManager, pick it up here
@@ -92,18 +115,55 @@ namespace UI
             }
 
             InitConditions();
+            SyncConditions();
 
-            _rightPanel = new Rect(Screen.width - 280, 60, 270, clients.Count * 100 + 40);
+            // Fit the panel to the screen; the technique list scrolls inside it.
+            _rightPanel = new Rect(Screen.width - 280, 60, 270,
+                Mathf.Min(clients.Count * 100 + 40, Screen.height - 70));
 
             // Apply solo visibility. A server-only instance receives no snapshots, so the technique circles
             // would just sit idle: hide them until a client (or host) is running.
-            bool serverOnly = networkSim == null && NetworkServer.active && !NetworkClient.active;
+            bool serverOnly = Mode == DemoMode.Server;
             for (int i = 0; i < clients.Count; i++)
                 clients[i].gameObject.SetActive(!serverOnly && !_hidden.Contains(i));
 
             // Keyboard shortcut: Space = pause, R = reset metrics
-            if (Input.GetKeyDown(KeyCode.Space)) TogglePause();
+            if (Input.GetKeyDown(KeyCode.Space) && Mode != DemoMode.Client) TogglePause();
             if (Input.GetKeyDown(KeyCode.R)) ResetAllMetrics();
+        }
+
+        // Mirror: pull conditions changed elsewhere into the sliders, and flush our own edits at a limited rate
+        // (a Command per frame while dragging would flood the uplink).
+        void SyncConditions()
+        {
+            if (networkSim || !server) return;
+
+            if (server != _condServer)
+            {
+                // New session / new server object: reseed from it.
+                _condServer = server;
+                _cond = _lastServerCond = server.conditions;
+                _condInit = true;
+                _condPending = false;
+            }
+
+            bool dragging = Input.GetMouseButton(0);
+            if (_condPending)
+            {
+                if (!dragging || Time.unscaledTime - _lastCondSend >= CondSendInterval)
+                {
+                    _condPending = false;
+                    _lastCondSend = Time.unscaledTime;
+                    server.RequestConditions(_cond);
+                }
+            }
+
+            var remote = server.conditions;
+            if (!remote.Equals(_lastServerCond))
+            {
+                _lastServerCond = remote;
+                if (!_condPending && !dragging) _cond = remote;
+            }
         }
 
         // Seed the UI state from whatever the scene/server currently uses.
@@ -138,8 +198,11 @@ namespace UI
             GUI.Label(new Rect(10, 28, 700, 18),
                 "Space = Pause  |  R = Reset Metrics  |  Click technique name to Solo/Unsolo");
 
+            // Pause only freezes this process; on a remote client the server would keep moving, so it is disabled there.
+            GUI.enabled = Mode != DemoMode.Client;
             if (GUI.Button(new Rect(Screen.width - 170, 10, 80, 30), _paused ? "▶ Resume" : "⏸ Pause"))
                 TogglePause();
+            GUI.enabled = true;
             if (GUI.Button(new Rect(Screen.width - 85, 10, 80, 30), "↺ Reset"))
                 ResetAllMetrics();
             if (GUI.Button(new Rect(Screen.width - 255, 10, 80, 30), _showTuner ? "Tune ✓" : "Tune"))
@@ -163,6 +226,9 @@ namespace UI
             _leftScroll = GUILayout.BeginScrollView(_leftScroll);
 
             bool controllable = _condInit && (networkSim || server);
+            bool benchRunning = _bench.Running;
+            // Changing conditions mid-benchmark would invalidate the run.
+            GUI.enabled = !benchRunning;
             if (controllable)
             {
                 var c = _cond;
@@ -185,7 +251,15 @@ namespace UI
                 GUILayout.Label($"Send Rate: {c.sendRateHz:F0} Hz");
                 c.sendRateHz = GUILayout.HorizontalSlider(c.sendRateHz, 1f, 64f);
 
-                if (!c.Equals(_cond)) ApplyConditions(c);
+                if (!c.Equals(_cond))
+                {
+                    if (networkSim) ApplyConditions(c);
+                    else
+                    {
+                        _cond = c;
+                        _condPending = true; // sent by SyncConditions, throttled
+                    }
+                }
             }
             else
             {
@@ -205,7 +279,8 @@ namespace UI
                 }
             }
 
-            if (server)
+            // These fields are not synced: on a remote client they would change a copy that never moves.
+            if (server && OwnsServer)
             {
                 GUILayout.Label($"Server Speed: {server.timeScale:F2}x");
                 server.timeScale = GUILayout.HorizontalSlider(server.timeScale, 0.1f, 5f);
@@ -239,14 +314,19 @@ namespace UI
                         $"Packets sent: {networkSim.packetsSentTotal}  Dropped: {networkSim.packetsDroppedTotal}");
                 }
 
+                GUI.enabled = true;
                 GUILayout.Space(8);
                 GUILayout.Label("── Benchmark ──", _headerStyle);
-                if (!networkSim && NetworkServer.active && NetworkClient.active)
+                if (Mode == DemoMode.Host)
                     GUILayout.Label("Host mode: the local client bypasses latency/loss. Run from the ParrelSync client.");
                 if (_bench.Running)
                 {
                     GUILayout.Label(_bench.Status);
                     if (GUILayout.Button("Cancel")) _bench.Cancel();
+                }
+                else if (Mode == DemoMode.Server)
+                {
+                    GUILayout.Label("Dedicated server: no client is running, so there is nothing to measure. Start a client.");
                 }
                 else
                 {
@@ -261,6 +341,7 @@ namespace UI
                 }
             }
 
+            GUI.enabled = true;
             GUILayout.EndScrollView();
             GUILayout.EndArea();
         }
@@ -269,6 +350,13 @@ namespace UI
         {
             GUILayout.BeginArea(_rightPanel, "Technique Metrics", GUI.skin.window);
             GUILayout.Space(4);
+            if (Mode == DemoMode.Server)
+            {
+                GUILayout.Label("Dedicated server: no client running, no metrics.");
+                GUILayout.EndArea();
+                return;
+            }
+
             _scroll = GUILayout.BeginScrollView(_scroll);
 
             for (int i = 0; i < clients.Count; i++)
@@ -444,6 +532,8 @@ namespace UI
         public void ApplyConditions(NetConditions c)
         {
             _cond = c;
+            _condPending = false;
+            _lastCondSend = Time.unscaledTime;
             if (networkSim)
             {
                 networkSim.baseLatencyMs = c.latencyMs;
@@ -483,7 +573,6 @@ namespace UI
         {
             if (_stylesInit) return;
             _titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 16, fontStyle = FontStyle.Bold };
-            _metricStyle = new GUIStyle(GUI.skin.label) { fontSize = 11 };
             _headerStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold };
             _stylesInit = true;
         }

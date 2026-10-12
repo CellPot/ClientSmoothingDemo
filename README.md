@@ -44,10 +44,11 @@ Notes for the ParrelSync setup:
 - `Assets/Plugins/ParrelSync/` is git-ignored; install it yourself.
 
 ### Controls
-- `Space`: pause. `R`: reset the metrics.
+- `Space`: pause (disabled on a remote client: it would only freeze the local view while the server keeps moving). `R`: reset the metrics.
 - The on-screen panel shows per-technique error, lets you hide techniques, and has sliders for latency, jitter, loss and send rate, plus presets.
 - **Tune** (top bar) opens live sliders for the selected technique's parameters (found by reflection from its `[Range]` floats and bools, so new techniques get them automatically), with a reset to the values at startup. Changes are local to the running client.
-- In Mirror the server owns the network conditions; a client changes them through a command and every client sees the same values.
+- In Mirror the server owns the network conditions; a client changes them through a command (sent at most every 0.1 s while dragging) and every client sees the same values, including changes made by another peer or a benchmark.
+- The mode is detected automatically: simulator, Mirror offline, dedicated server, host or client. Server speed / back-move / player-controlled are only shown where the server runs (they are not synced). A dedicated server has no client, so it shows no metrics and cannot run the benchmark. Conditions are locked while a benchmark runs.
 
 ## Network presets
 

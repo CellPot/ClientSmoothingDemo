@@ -62,6 +62,12 @@ namespace UI
                 return;
             }
 
+            if (_ui.Mode == DemoUIManager.DemoMode.Server)
+            {
+                Status = "Dedicated server has no client to measure.";
+                return;
+            }
+
             Status = "";
             _routine = StartCoroutine(Run());
         }
@@ -242,10 +248,7 @@ namespace UI
         {
             try
             {
-                string mode = _ui.networkSim != null ? "simulated"
-                    : NetworkServer.active && NetworkClient.active ? "host"
-                    : NetworkClient.active ? "client"
-                    : "offline";
+                string mode = _ui.Mode == DemoUIManager.DemoMode.Simulator ? "simulated" : _ui.Mode.ToString().ToLowerInvariant();
                 var ci = CultureInfo.InvariantCulture;
                 var sb = new StringBuilder();
                 sb.AppendLine($"# scene={SceneManager.GetActiveScene().name} mode={mode} seed={Seed} warmup={Warmup}s duration={Duration}s date={DateTime.Now:s}");
