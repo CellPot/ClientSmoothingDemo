@@ -30,9 +30,7 @@ namespace Techniques
         protected override void OnSnapshot(NetworkSimulator.Snapshot snap)
         {
             _buffer.Add(snap);
-            // Keep buffer bounded
-            while (_buffer.Count > 64)
-                _buffer.RemoveAt(0);
+            SnapshotSampler.CapCount(_buffer, 64);
         }
 
         protected override void UpdatePosition()
@@ -41,40 +39,14 @@ namespace Techniques
 
             float renderTime = Time.time - bufferDelay;
 
-            // Find the two snapshots that straddle renderTime
-            NetworkSimulator.Snapshot from = _buffer[0];
-            NetworkSimulator.Snapshot to = _buffer[0];
+            // Straddling pair; if renderTime is outside the buffer, clamp to the last two snapshots
+            int fromIdx = SnapshotSampler.FindBracket(_buffer, renderTime);
+            if (fromIdx < 0) fromIdx = _buffer.Count - 2;
 
-            for (int i = 0; i < _buffer.Count - 1; i++)
-            {
-                if (_buffer[i].timestamp <= renderTime && _buffer[i + 1].timestamp >= renderTime)
-                {
-                    from = _buffer[i];
-                    to = _buffer[i + 1];
-                    break;
-                }
+            SnapshotSampler.Sample(_buffer, fromIdx, renderTime, out Vector3 pos, out _);
+            transform.position = pos;
 
-                // If renderTime is past the newest snapshot, extrapolate from last two
-                if (i == _buffer.Count - 2)
-                {
-                    from = _buffer[_buffer.Count - 2];
-                    to = _buffer[_buffer.Count - 1];
-                }
-            }
-
-            float span = to.timestamp - from.timestamp;
-            if (span <= 0f)
-            {
-                transform.position = to.position;
-                return;
-            }
-
-            float t = Mathf.Clamp01((renderTime - from.timestamp) / span);
-            transform.position = Vector3.Lerp(from.position, to.position, t);
-
-            // Trim old snapshots
-            while (_buffer.Count > 2 && _buffer[1].timestamp < renderTime - 0.5f)
-                _buffer.RemoveAt(0);
+            SnapshotSampler.TrimBefore(_buffer, renderTime - 0.5f);
         }
     }
 }

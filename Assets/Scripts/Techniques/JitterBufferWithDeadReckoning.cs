@@ -76,35 +76,16 @@ namespace Techniques
             }
 
             // Find the two snapshots that bracket playback time
-            int fromIdx = -1;
-            for (int i = 0; i < _queue.Count - 1; i++)
-            {
-                if (_queue.Keys[i] <= _playbackTime && _queue.Keys[i + 1] >= _playbackTime)
-                {
-                    fromIdx = i;
-                    break;
-                }
-            }
+            int fromIdx = SnapshotSampler.FindBracket(_queue.Values, _playbackTime);
 
             if (fromIdx >= 0)
             {
                 // ── Normal jitter-buffer playback ─────────────────────────────────
-                var from = _queue.Values[fromIdx];
-                var to = _queue.Values[fromIdx + 1];
-                float span = to.timestamp - from.timestamp;
-                float t = span > 0f
-                    ? Mathf.Clamp01((_playbackTime - from.timestamp) / span)
-                    : 1f;
-
-                Vector3 rendered = Vector3.Lerp(from.position, to.position, t);
-                Vector3 rendVel = Vector3.Lerp(from.velocity, to.velocity, t);
-
                 // Keep reckoning state synced to rendered output every frame
-                _reckonPos = rendered;
-                _reckonVel = rendVel;
+                SnapshotSampler.Sample(_queue.Values, fromIdx, _playbackTime, out _reckonPos, out _reckonVel);
                 _reckonTimer = 0f;
 
-                transform.position = rendered;
+                transform.position = _reckonPos;
 
                 // Trim entries well behind playback
                 while (_queue.Count > 2 && _queue.Keys[1] < _playbackTime - bufferDepth - 0.3f)

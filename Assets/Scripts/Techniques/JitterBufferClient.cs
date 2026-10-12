@@ -80,8 +80,7 @@ namespace Techniques
             if (idx < _queue.Count - 1)
             {
                 var next = _queue.Values[idx + 1];
-                float span = next.timestamp - best.timestamp;
-                float t    = span > 0f ? Mathf.Clamp01((_playbackTime - best.timestamp) / span) : 1f;
+                float t = SnapshotSampler.Fraction(best, next, _playbackTime);
                 _currentPos = Vector3.Lerp(best.position, next.position, t);
             }
             else

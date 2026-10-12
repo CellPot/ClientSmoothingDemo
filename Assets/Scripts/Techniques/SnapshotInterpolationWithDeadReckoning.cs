@@ -97,7 +97,7 @@ namespace Techniques
             else _delay = bufferDelay;
 
             _buffer.Add(snap);
-            while (_buffer.Count > 64) _buffer.RemoveAt(0);
+            SnapshotSampler.CapCount(_buffer, 64);
 
             if (_reckoning)
             {
@@ -115,34 +115,17 @@ namespace Techniques
 
             float renderTime = Time.time - _delay;
 
-            int fromIdx = -1;
-            for (int i = 0; i < _buffer.Count - 1; i++)
-            {
-                if (_buffer[i].timestamp <= renderTime && _buffer[i + 1].timestamp >= renderTime)
-                {
-                    fromIdx = i;
-                    break;
-                }
-            }
+            int fromIdx = SnapshotSampler.FindBracket(_buffer, renderTime);
 
             if (fromIdx >= 0)
             {
-                var from = _buffer[fromIdx];
-                var to = _buffer[fromIdx + 1];
-                float span = to.timestamp - from.timestamp;
-                float t = span > 0f
-                    ? Mathf.Clamp01((renderTime - from.timestamp) / span)
-                    : 1f;
-
-                _lastRenderedPos = Vector3.Lerp(from.position, to.position, t);
-                _lastRenderedVel = Vector3.Lerp(from.velocity, to.velocity, t);
+                SnapshotSampler.Sample(_buffer, fromIdx, renderTime, out _lastRenderedPos, out _lastRenderedVel);
                 _lastRenderedTime = Time.time;
                 _reckoning = false;
 
                 transform.position = _lastRenderedPos;
 
-                while (_buffer.Count > 2 && _buffer[1].timestamp < renderTime - 0.5f)
-                    _buffer.RemoveAt(0);
+                SnapshotSampler.TrimBefore(_buffer, renderTime - 0.5f);
             }
             else
             {
