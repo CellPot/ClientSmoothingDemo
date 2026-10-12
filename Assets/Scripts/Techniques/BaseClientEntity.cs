@@ -149,6 +149,10 @@ namespace Techniques
             if (currentError > maxError) maxError = currentError;
         }
 
+        public string DebugState() =>
+            $"{techniqueName} activeInHierarchy={gameObject.activeInHierarchy} enabled={enabled} hasTransport={_transport != null} " +
+            $"hasServer={server != null} snapshots={snapshotsReceived} pos={transform.position} err={currentError:F3}";
+
         public void ResetMetrics()
         {
             currentError = averageError = maxError = 0f;

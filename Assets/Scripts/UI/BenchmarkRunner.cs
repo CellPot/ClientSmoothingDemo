@@ -57,13 +57,14 @@ namespace UI
                 return;
             }
 
+            Status = "";
             _routine = StartCoroutine(Run());
         }
 
         public void Cancel()
         {
             if (!Running) return;
-            StopCoroutine(_routine);
+            if (_routine != null) StopCoroutine(_routine);
             Finish("Cancelled.");
         }
 
@@ -77,9 +78,32 @@ namespace UI
             }
         }
 
+        // Runs the benchmark, turning any exception into a visible status instead of a stuck "Running" state.
         IEnumerator Run()
         {
             Running = true;
+            var steps = RunSteps();
+            while (true)
+            {
+                object current;
+                try
+                {
+                    if (!steps.MoveNext()) yield break;
+                    current = steps.Current;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogException(ex);
+                    Finish($"Failed: {ex.Message}");
+                    yield break;
+                }
+
+                yield return current;
+            }
+        }
+
+        IEnumerator RunSteps()
+        {
             Results.Clear();
             _restore = _ui.GetConditions();
             _ui.PrepareBenchmark();
@@ -152,8 +176,9 @@ namespace UI
         {
             _recording = false;
             Running = false;
-            _ui.ApplyConditions(_restore);
             Status = status;
+            try { _ui.ApplyConditions(_restore); }
+            catch (Exception ex) { Debug.LogException(ex); }
         }
 
         string WriteCsv()

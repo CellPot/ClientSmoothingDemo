@@ -64,6 +64,7 @@ namespace Network
 
         void Awake()
         {
+            NetDiagnostics.Write($"ServerEntity Awake {DebugState()}");
             ResetPath(pathSeed);
             _transport = transportBehaviour as INetworkTransport ?? FindTransport();
             if (_transport == null)
@@ -128,6 +129,16 @@ namespace Network
             base.OnStopClient();
         }
 
+        public string DebugState() =>
+            $"{name} activeInHierarchy={gameObject.activeInHierarchy} enabled={enabled} driveMode={driveMode} " +
+            $"hasNetIdentity={netIdentity != null} hasTransport={_transport != null} sendRateHz={sendRateHz} " +
+            $"timeScale={timeScale} playerControlled={playerControlled} pathTime={_pathTime:F2} pos={transform.position}";
+
+        // The simulator scene places this object without Mirror starting it, so the NetworkBehaviour
+        // accessors (isClient, netId...) must not be trusted unless a NetworkIdentity is present.
+        bool IsNetworkedClient => netIdentity != null && isClient;
+        string NetIdText => netIdentity != null ? netId.ToString() : "-";
+
         // ── Seeded path ─────────────────────────────────────────────────────────
 
         /// <summary>Restart the path from t=0 with a fresh seeded RNG (server side).</summary>
@@ -152,7 +163,7 @@ namespace Network
 
         public void RequestPathReset(int seed)
         {
-            if (isClient) CmdResetPath(seed);
+            if (IsNetworkedClient) CmdResetPath(seed);
             else ResetPath(seed);
         }
 
@@ -163,7 +174,7 @@ namespace Network
 
         public void RequestConditions(NetConditions c)
         {
-            if (isClient) CmdSetConditions(c);
+            if (IsNetworkedClient) CmdSetConditions(c);
             else ServerApplyConditions(c);
         }
 
@@ -179,7 +190,7 @@ namespace Network
             c.sendRateHz = Mathf.Clamp(c.sendRateHz, 1f, 64f);
 
             sendRateHz = c.sendRateHz;
-            if (isServer) conditions = c;
+            if (netIdentity != null && isServer) conditions = c;
             ApplyToLatencySim(c);
         }
 
@@ -220,9 +231,14 @@ namespace Network
                    ?? FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None).OfType<INetworkTransport>().FirstOrDefault();
         }
 
+        void OnDisable()
+        {
+            NetDiagnostics.Write("ServerEntity OnDisable");
+        }
+
         void OnDestroy()
         {
-            NetDiagnostics.Write($"ServerEntity OnDestroy netId={netId}");
+            NetDiagnostics.Write($"ServerEntity OnDestroy netId={NetIdText}");
             if (Instance == this) Instance = null;
             if (_sprite != null)
             {

@@ -39,9 +39,25 @@ namespace UI
         private GUIStyle _headerStyle;
         private bool _stylesInit;
 
+        // Simulator scene: the Server is a scene object with a NetworkIdentity (ServerEntity is a NetworkBehaviour).
+        // Mirror's scene post-processing force-disables such objects until a NetworkServer spawns them, and it can
+        // do so after our Awake. There is no network here, so keep switching it on for the first frames.
+        private int _simGuardFrames = 120;
+
+        void Awake() => EnsureSimulatorServerActive();
+
+        void EnsureSimulatorServerActive()
+        {
+            if (networkSim == null) return;
+            foreach (var entity in FindObjectsByType<ServerEntity>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (!entity.gameObject.activeSelf)
+                    entity.gameObject.SetActive(true);
+        }
+
         void Start()
         {
             _rightPanel = new Rect(Screen.width - 280, 60, 270, clients.Count * 100 + 30);
+            EnsureSimulatorServerActive();
             if (networkSim == null && mirrorLatency == null)
                 mirrorLatency = FindFirstObjectByType<LatencySimulation>();
             if (mirrorTransport == null)
@@ -59,6 +75,12 @@ namespace UI
             // Late assign in case server spawned after this component started
             if (server == null && ServerEntity.Instance != null)
                 server = ServerEntity.Instance;
+
+            if (_simGuardFrames > 0)
+            {
+                _simGuardFrames--;
+                EnsureSimulatorServerActive();
+            }
 
             InitConditions();
 
