@@ -4,7 +4,9 @@ A Unity demo that compares client-side network smoothing techniques against one 
 
 ![Demo: eleven smoothing techniques following the server entity while the network preset changes](docs/demo.gif)
 
-**[Download for Windows](https://github.com/CellPot/ClientSmoothingDemo/releases/latest)** (Mirror scene, no Unity needed) · **Unity 6000.3** · Networking by [Mirror](https://github.com/MirrorNetworking/Mirror) (included under `Assets/Mirror`)
+**[Download for Windows](https://github.com/CellPot/ClientSmoothingDemo/releases/latest)** (Mirror scene, no Unity needed)
+
+**Unity 6000.3** · Networking by [Mirror](https://github.com/MirrorNetworking/Mirror) (included under `Assets/Mirror`)
 
 - [Techniques](#techniques)
 - [Scenes](#scenes)
