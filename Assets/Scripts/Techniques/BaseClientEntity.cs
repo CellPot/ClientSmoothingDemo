@@ -14,6 +14,7 @@ namespace Techniques
         private MonoBehaviour transportBehaviour;
 
         private INetworkTransport _transport;
+        private IReferenceSource _reference;
         public ServerEntity server;
 
         [Header("Display")] public string techniqueName = "Base";
@@ -57,6 +58,7 @@ namespace Techniques
         protected virtual void Awake()
         {
             _transport = transportBehaviour as INetworkTransport;
+            _reference = transportBehaviour as IReferenceSource;
             if (_transport == null)
                 Debug.LogError($"[{name}] transportBehaviour does not implement INetworkTransport.", this);
 
@@ -127,9 +129,14 @@ namespace Techniques
 
         private void TrackError()
         {
-            if (server == null) return;
-            // Compare against the authoritative server transform (works in both simulator and Mirror scenes)
-            currentError = Vector3.Distance(transform.position, server.transform.position);
+            Vector3 reference;
+            if (_reference != null && _reference.TryGetTruth(Time.time, out var truth))
+                reference = truth; // Mirror: true path at the matching local time
+            else if (server != null)
+                reference = server.transform.position; // simulator scene / fallback: live server transform
+            else
+                return;
+            currentError = Vector3.Distance(transform.position, reference);
             _errorAccum += currentError;
             _errorSamples++;
             averageError = _errorAccum / _errorSamples;

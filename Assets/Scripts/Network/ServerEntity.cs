@@ -25,6 +25,9 @@ namespace Network
         [Header("Network")]
         [SerializeField] private MonoBehaviour transportBehaviour;
         private INetworkTransport _transport;
+        private ITruthSender _truthSender;
+        private float _truthTimer;
+        private const float TruthInterval = 1f / 60f;
         [SerializeField] public DriveMode driveMode = DriveMode.Local;
         
         [Range(1f, 64f)] public float sendRateHz = 20f;
@@ -60,6 +63,7 @@ namespace Network
                 Debug.LogWarning($"[{name}] No INetworkTransport found. Server will move but won't send snapshots until a transport is present.", this);
             else
                 transportBehaviour = (MonoBehaviour)_transport;
+            _truthSender = _transport as ITruthSender;
 
             // Scene-placed (simulator) entities are never started by Mirror, so announce them here.
             if (driveMode == DriveMode.Local)
@@ -205,6 +209,16 @@ namespace Network
             _prevPos = basePos;
             TruePosition = basePos;
             transform.position = basePos;
+
+            if (_truthSender != null)
+            {
+                _truthTimer += Time.deltaTime;
+                if (_truthTimer >= TruthInterval)
+                {
+                    _truthTimer = 0f;
+                    _truthSender.SendTruth(Time.time, TruePosition);
+                }
+            }
 
             // Network broadcast (if a transport is available)
             if (_transport != null)

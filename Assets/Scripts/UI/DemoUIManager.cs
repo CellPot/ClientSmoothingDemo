@@ -17,13 +17,14 @@ namespace UI
         [Header("References")] public NetworkSimulator networkSim;
         [Tooltip("Mirror scene: latency/jitter/loss injected on the wrapped transport. Auto-found if empty.")]
         public LatencySimulation mirrorLatency;
+        public MirrorNetworkTransport mirrorTransport;
         public List<BaseClientEntity> clients;
         public ServerEntity server;
 
         // UI state
         private bool _paused;
         private HashSet<int> _hidden = new HashSet<int>();
-        private Rect _leftPanel = new Rect(10, 60, 260, 420);
+        private Rect _leftPanel = new Rect(10, 60, 260, 470);
         private Rect _rightPanel;
         private Vector2 _scroll;
 
@@ -37,6 +38,8 @@ namespace UI
             _rightPanel = new Rect(Screen.width - 280, 60, 270, clients.Count * 100 + 30);
             if (networkSim == null && mirrorLatency == null)
                 mirrorLatency = FindFirstObjectByType<LatencySimulation>();
+            if (mirrorTransport == null)
+                mirrorTransport = FindFirstObjectByType<MirrorNetworkTransport>();
             // If the ServerEntity is prefab-spawned by DemoNetworkManager, pick it up here
             if (server == null)
                 server = ServerEntity.Instance;
@@ -107,6 +110,16 @@ namespace UI
 
                 GUILayout.Label($"Reorder: {mirrorLatency.unreliableScramble:F0}%");
                 mirrorLatency.unreliableScramble = GUILayout.HorizontalSlider(mirrorLatency.unreliableScramble, 0f, 50f);
+            }
+
+            if (mirrorTransport)
+            {
+                bool adjusted = GUILayout.Toggle(mirrorTransport.latencyAdjustedReference, " Error vs. true path (not live transform)");
+                if (adjusted != mirrorTransport.latencyAdjustedReference)
+                {
+                    mirrorTransport.latencyAdjustedReference = adjusted;
+                    ResetAllMetrics();
+                }
             }
 
             if (server)
