@@ -46,6 +46,7 @@ Notes for the ParrelSync setup:
 ### Controls
 - `Space`: pause. `R`: reset the metrics.
 - The on-screen panel shows per-technique error, lets you hide techniques, and has sliders for latency, jitter, loss and send rate, plus presets.
+- **Tune** (top bar) opens live sliders for the selected technique's parameters (found by reflection from its `[Range]` floats and bools, so new techniques get them automatically), with a reset to the values at startup. Changes are local to the running client.
 - In Mirror the server owns the network conditions; a client changes them through a command and every client sees the same values.
 
 ## Network presets
@@ -67,7 +68,7 @@ Notes for the ParrelSync setup:
 - The toggle "Error vs. true path" falls back to the live server transform.
 - **Delay-adjusted error** compares against the truth rewound by the delay a technique adds on purpose (buffer depth, or the lag of its smoothing chase), so deliberate buffering is not counted as error.
 - **Smoothness** is the frame-to-frame change in velocity (`rms_dv`); a frame above 15 units/s counts as a stutter.
-- **Score** = `adj_mean + 0.02 * rms_dv + 0.003 * added_delay_ms` (lower is better). The weights are a judgement call.
+- **Score** = `adj_mean + 0.02 * rms_dv + 0.003 * added_delay_ms` (lower is better). The weights are a judgement call; the ranking is fairly robust to them (Kalman + Exponential Smoothing stays first overall unless delay is made free). The results window has sliders for both weights and an overall ranking (mean score over all presets); the CSV always uses the defaults.
 
 ## Benchmark
 

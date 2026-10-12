@@ -30,7 +30,7 @@ namespace UI
             public float adjMean, adjP95; // vs truth rewound by the added delay
             public float rmsDv;           // RMS frame-to-frame velocity change (smoothness, lower = smoother)
             public int stutters;
-            public float score;           // combined rank, lower is better, see Score()          // frames with a velocity change above StutterThreshold
+            public float score;           // combined rank at the default weights, lower is better, see Score()
         }
 
         public class PresetResult
@@ -175,7 +175,8 @@ namespace UI
                 Results.Add(result);
             }
 
-            Finish($"Done. {WriteCsv()}");
+            string written = WriteCsv();
+            Finish(LastFile != null && written == LastFile ? $"Done. Saved {Path.GetFileName(written)}" : written);
         }
 
         static Row Summarize(Techniques.BaseClientEntity c, List<float> samples, List<float> adj, List<float> dv)
@@ -220,7 +221,15 @@ namespace UI
 
         // Combined rank (lower = better): delay-adjusted accuracy + roughness + intentional lag. The weights are a
         // judgement call (1 u of error ~ 50 u/s of velocity change ~ 330 ms of delay); the CSV keeps the raw columns.
-        public static float Score(Row r) => r.adjMean + 0.02f * r.rmsDv + 0.003f * r.delayMs;
+        // The ranking is fairly robust to them (Kalman+ES wins overall unless delay is made free), so the results
+        // window lets you change the weights live. The CSV score column always uses the defaults.
+        public const float DefaultDvWeight = 0.02f;
+        public const float DefaultDelayWeight = 0.003f;
+
+        public static float Score(Row r) => Score(r, DefaultDvWeight, DefaultDelayWeight);
+
+        public static float Score(Row r, float dvWeight, float delayWeight) =>
+            r.adjMean + dvWeight * r.rmsDv + delayWeight * r.delayMs;
 
         static float Percentile95(List<float> sorted) =>
             sorted[Mathf.Clamp((int)Math.Ceiling(0.95 * sorted.Count) - 1, 0, sorted.Count - 1)];

@@ -27,8 +27,17 @@ namespace UI
         private Rect _leftPanel = new Rect(10, 60, 260, 580);
         private Rect _rightPanel;
         private Vector2 _scroll;
+        private Vector2 _leftScroll;
         private Vector2 _resultsScroll;
         private bool _showResults;
+        private bool _showTuner;
+        private int _tunerIndex;
+        private Vector2 _tunerScroll;
+        private readonly ParameterTuner _tuner = new ParameterTuner();
+
+        // Score weights used by the results window (the CSV always uses the defaults).
+        private float _dvWeight = BenchmarkRunner.DefaultDvWeight;
+        private float _delayWeight = BenchmarkRunner.DefaultDelayWeight;
 
         private NetConditions _cond;
         private bool _condInit;
@@ -131,16 +140,25 @@ namespace UI
                 TogglePause();
             if (GUI.Button(new Rect(Screen.width - 85, 10, 80, 30), "↺ Reset"))
                 ResetAllMetrics();
+            if (GUI.Button(new Rect(Screen.width - 255, 10, 80, 30), _showTuner ? "Tune ✓" : "Tune"))
+            {
+                _showTuner = !_showTuner;
+                if (_showTuner) _showResults = false;
+            }
 
             DrawLeftPanel();
             DrawRightPanel();
             if (_showResults) DrawResults();
+            if (_showTuner) DrawTuner();
         }
 
         void DrawLeftPanel()
         {
+            // Fill the screen height and scroll, so the benchmark controls at the bottom are never pushed off-screen.
+            _leftPanel.height = Mathf.Max(200f, Screen.height - _leftPanel.y - 10f);
             GUILayout.BeginArea(_leftPanel, "Network Conditions", GUI.skin.window);
             GUILayout.Space(8);
+            _leftScroll = GUILayout.BeginScrollView(_leftScroll);
 
             bool controllable = _condInit && (networkSim || server);
             if (controllable)
@@ -237,10 +255,14 @@ namespace UI
                         _bench.Begin();
                     if (!string.IsNullOrEmpty(_bench.Status)) GUILayout.Label(_bench.Status);
                     if (_bench.Results.Count > 0 && GUILayout.Button("Show results"))
+                    {
                         _showResults = true;
+                        _showTuner = false;
+                    }
                 }
             }
 
+            GUILayout.EndScrollView();
             GUILayout.EndArea();
         }
 
@@ -280,15 +302,89 @@ namespace UI
             GUILayout.EndArea();
         }
 
+        void DrawTuner()
+        {
+            var rect = new Rect(290, 70, 340, Screen.height - 90);
+            GUILayout.BeginArea(rect, "Tune technique parameters (live)", GUI.skin.window);
+            GUILayout.Space(6);
+            if (clients.Count > 0)
+            {
+                _tunerIndex = Mathf.Clamp(_tunerIndex, 0, clients.Count - 1);
+                var names = new string[clients.Count];
+                for (int i = 0; i < clients.Count; i++) names[i] = clients[i].techniqueName;
+                _tunerIndex = GUILayout.SelectionGrid(_tunerIndex, names, 1);
+
+                GUILayout.Space(6);
+                var c = clients[_tunerIndex];
+                GUILayout.Label($"{c.techniqueName}   (added delay {c.AddedDelaySeconds * 1000f:F0} ms)", _headerStyle);
+                _tunerScroll = GUILayout.BeginScrollView(_tunerScroll);
+                _tuner.Draw(c);
+                GUILayout.EndScrollView();
+
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("Reset to defaults")) _tuner.Reset(c);
+                if (GUILayout.Button("Reset metrics")) ResetAllMetrics();
+                GUILayout.EndHorizontal();
+            }
+
+            if (GUILayout.Button("Close")) _showTuner = false;
+            GUILayout.EndArea();
+        }
+
         void DrawResults()
         {
-            var rect = new Rect(290, 70, Screen.width - 290 - 290, Screen.height - 90);
+            // The table needs ~740 px. Scale the whole window down when the screen is narrower, so nothing is cut off.
+            const float needWidth = 740f;
+            float availWidth = Screen.width - 290f;
+            float scale = Mathf.Clamp(availWidth / needWidth, 0.5f, 1f);
+            var oldMatrix = GUI.matrix;
+            GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
+            var rect = new Rect(280f / scale, 70f / scale, availWidth / scale, (Screen.height - 90f) / scale);
             GUILayout.BeginArea(rect, "Benchmark results (error in world units)", GUI.skin.window);
             GUILayout.Space(6);
             if (!string.IsNullOrEmpty(_bench.LastFile))
                 GUILayout.Label("Saved: " + _bench.LastFile);
 
-            _resultsScroll = GUILayout.BeginScrollView(_resultsScroll);
+            // Score = adjusted error + dvWeight * RMS dv + delayWeight * delay(ms). Re-ranked live; the CSV keeps the defaults.
+            GUILayout.BeginHorizontal();
+            GUILayout.Label($"Roughness {_dvWeight:F3}", GUILayout.Width(110));
+            _dvWeight = GUILayout.HorizontalSlider(_dvWeight, 0f, 0.1f, GUILayout.Width(90));
+            GUILayout.Space(10);
+            GUILayout.Label($"Delay {_delayWeight:F4}/ms", GUILayout.Width(120));
+            _delayWeight = GUILayout.HorizontalSlider(_delayWeight, 0f, 0.01f, GUILayout.Width(90));
+            if (GUILayout.Button("Defaults", GUILayout.Width(70)))
+            {
+                _dvWeight = BenchmarkRunner.DefaultDvWeight;
+                _delayWeight = BenchmarkRunner.DefaultDelayWeight;
+            }
+
+            GUILayout.EndHorizontal();
+
+            _resultsScroll = GUILayout.BeginScrollView(_resultsScroll, false, false);
+
+            // Overall: mean score over all presets.
+            var totals = new Dictionary<string, float>();
+            var order = new List<string>();
+            foreach (var r in _bench.Results)
+                foreach (var row in r.rows)
+                {
+                    if (!totals.ContainsKey(row.technique)) { totals[row.technique] = 0f; order.Add(row.technique); }
+                    totals[row.technique] += BenchmarkRunner.Score(row, _dvWeight, _delayWeight) / _bench.Results.Count;
+                }
+
+            order.Sort((x, y) => totals[x].CompareTo(totals[y]));
+            GUILayout.Label("Overall (mean score over all presets)", _headerStyle);
+            for (int i = 0; i < order.Count; i++)
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.Label($"{i + 1}.", GUILayout.Width(26));
+                GUILayout.Label(order[i], GUILayout.Width(190));
+                GUILayout.Label($"{totals[order[i]]:F2}", GUILayout.Width(52));
+                GUILayout.EndHorizontal();
+            }
+
+            GUILayout.Space(10);
+
             foreach (var r in _bench.Results)
             {
                 var c = r.preset.conditions;
@@ -296,32 +392,39 @@ namespace UI
                     $"{r.preset.name}   {c.latencyMs:F0}ms  ±{c.jitterMs:F0}  loss {c.lossPct:F0}%  rx {r.rxHz:F1} Hz",
                     _headerStyle);
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("Technique", GUILayout.Width(220));
-                GUILayout.Label("Mean", GUILayout.Width(60));
-                GUILayout.Label("P95", GUILayout.Width(60));
-                GUILayout.Label("Max", GUILayout.Width(60));
-                GUILayout.Label("Delay", GUILayout.Width(60));
-                GUILayout.Label("AdjMean", GUILayout.Width(60));
-                GUILayout.Label("AdjP95", GUILayout.Width(60));
-                GUILayout.Label("RMSdv", GUILayout.Width(60));
-                GUILayout.Label("Stutter", GUILayout.Width(60));
-                GUILayout.Label("Score", GUILayout.Width(60));
+                GUILayout.Label("Technique", GUILayout.Width(190));
+                GUILayout.Label("Mean", GUILayout.Width(52));
+                GUILayout.Label("P95", GUILayout.Width(52));
+                GUILayout.Label("Max", GUILayout.Width(52));
+                GUILayout.Label("Delay", GUILayout.Width(52));
+                GUILayout.Label("AdjMean", GUILayout.Width(52));
+                GUILayout.Label("AdjP95", GUILayout.Width(52));
+                GUILayout.Label("RMSdv", GUILayout.Width(52));
+                GUILayout.Label("Stutter", GUILayout.Width(52));
+                GUILayout.Label("Score", GUILayout.Width(52));
                 GUILayout.EndHorizontal();
                 var ranked = new List<BenchmarkRunner.Row>(r.rows);
-                ranked.Sort((a, b) => a.score.CompareTo(b.score));
+                for (int i = 0; i < ranked.Count; i++)
+                {
+                    var rr = ranked[i];
+                    rr.score = BenchmarkRunner.Score(rr, _dvWeight, _delayWeight);
+                    ranked[i] = rr;
+                }
+
+                ranked.Sort((x, y) => x.score.CompareTo(y.score));
                 foreach (var row in ranked)
                 {
                     GUILayout.BeginHorizontal();
-                    GUILayout.Label(row.technique, GUILayout.Width(220));
-                    GUILayout.Label($"{row.mean:F3}", GUILayout.Width(60));
-                    GUILayout.Label($"{row.p95:F3}", GUILayout.Width(60));
-                    GUILayout.Label($"{row.max:F3}", GUILayout.Width(60));
-                    GUILayout.Label($"{row.delayMs:F0}ms", GUILayout.Width(60));
-                    GUILayout.Label($"{row.adjMean:F3}", GUILayout.Width(60));
-                    GUILayout.Label($"{row.adjP95:F3}", GUILayout.Width(60));
-                    GUILayout.Label($"{row.rmsDv:F1}", GUILayout.Width(60));
-                    GUILayout.Label($"{row.stutters}", GUILayout.Width(60));
-                    GUILayout.Label($"{row.score:F2}", GUILayout.Width(60));
+                    GUILayout.Label(row.technique, GUILayout.Width(190));
+                    GUILayout.Label($"{row.mean:F3}", GUILayout.Width(52));
+                    GUILayout.Label($"{row.p95:F3}", GUILayout.Width(52));
+                    GUILayout.Label($"{row.max:F3}", GUILayout.Width(52));
+                    GUILayout.Label($"{row.delayMs:F0}ms", GUILayout.Width(52));
+                    GUILayout.Label($"{row.adjMean:F3}", GUILayout.Width(52));
+                    GUILayout.Label($"{row.adjP95:F3}", GUILayout.Width(52));
+                    GUILayout.Label($"{row.rmsDv:F1}", GUILayout.Width(52));
+                    GUILayout.Label($"{row.stutters}", GUILayout.Width(52));
+                    GUILayout.Label($"{row.score:F2}", GUILayout.Width(52));
                     GUILayout.EndHorizontal();
                 }
 
@@ -331,6 +434,7 @@ namespace UI
             GUILayout.EndScrollView();
             if (GUILayout.Button("Close")) _showResults = false;
             GUILayout.EndArea();
+            GUI.matrix = oldMatrix;
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────
