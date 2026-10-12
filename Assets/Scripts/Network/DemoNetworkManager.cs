@@ -1,3 +1,4 @@
+using System.Linq;
 using Mirror;
 using UnityEngine;
 
@@ -58,13 +59,44 @@ namespace Network
         {
             // Keep default behavior; do not double-register prefabs here.
             base.OnClientConnect();
+            NetDiagnostics.Write($"OnClientConnect ready={NetworkClient.ready}");
         }
 
-        public override void OnServerReady(Mirror.NetworkConnectionToClient conn)
+        public override void OnServerReady(NetworkConnectionToClient conn)
         {
             base.OnServerReady(conn);
             // Not strictly needed for prefab-spawn path, but harmless. Helps if any scene objects exist.
             NetworkServer.SpawnObjects();
+
+            bool local = conn is LocalConnectionToClient;
+            NetDiagnostics.Write($"OnServerReady conn={conn.connectionId} local={local} isReady={conn.isReady} " +
+                                 $"hasPlayerObject={conn.identity != null} | {NetDiagnostics.DescribeServerWorld()}");
+
+            // Mirror's SetClientReady only sends the world to connections that own a player object. This demo has
+            // no players, so remote clients would never receive the ServerEntity: do the spawn ourselves.
+            if (!local && conn.identity == null)
+            {
+                SpawnWorldFor(conn);
+                NetDiagnostics.Write($"SpawnWorldFor conn={conn.connectionId} done | {NetDiagnostics.DescribeServerWorld()}");
+            }
+        }
+
+        // Same steps as NetworkServer.SpawnObserversForConnection (private, and skipped for player-less clients).
+        // RebuildObservers(initialize: true) adds every ready connection that isn't an observer yet (no interest
+        // management in this project), and each new observer is sent the spawn message.
+        static void SpawnWorldFor(NetworkConnectionToClient conn)
+        {
+            conn.Send(new ObjectSpawnStartedMessage());
+            foreach (var identity in NetworkServer.spawned.Values.ToList())
+                if (identity.gameObject.activeSelf)
+                    NetworkServer.RebuildObservers(identity, true);
+            conn.Send(new ObjectSpawnFinishedMessage());
+        }
+
+        public override void OnServerConnect(NetworkConnectionToClient conn)
+        {
+            base.OnServerConnect(conn);
+            NetDiagnostics.Write($"OnServerConnect conn={conn.connectionId}");
         }
 
         public override void OnStopClient()
